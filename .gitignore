@@ -1,0 +1,10 @@
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.dll
+*.pdb
+_*.py
+_*.txt
+*.log

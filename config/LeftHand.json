@@ -1,0 +1,85 @@
+// LeftHand 配置（手工调好的数值，2026-11-14）
+// 说明：模式1 = peek 接大拉，模式2 = 蹲拉；两者按 Mode2Chance 纯随机挑。
+{
+  "Enabled": true,
+  "Debug": false,
+
+  "PreaimMaxDistance": 1100,
+  "PreaimHardRadius": 380,
+  "PreaimContactTime": 0.9,
+  "PreaimEngageDistance": 700,
+  "PreaimMaxHeightDiff": 140,
+  "PreaimFrontConeDeg": 120,
+  "PreaimLeadTime": 0.15,
+  "HolderTrackThroughWalls": true,
+  "HolderPreaimConeDeg": 100,
+  "TrackStaticTargets": true,
+  "PreaimOnlyWhenInvisible": true,
+  "PreaimLookAtSpot": true,
+  "WriteLookYaw": false,
+  "WriteBodyAngles": false,
+
+  "ApplyBotDifficulty": true,
+  "BotDifficulty": 4,
+  "CustomBotDifficulty": 100,
+
+  "AimTurnSpeedDeg": 480,
+  "AimTurnSpeedVisibleDeg": 1100,
+  "AimHeadOffsetZ": -1.5,
+  "AimJitterDeg": 1.2,
+
+  "CounterStrafe": true,
+  "CounterStrafeFactor": 0,
+  "RunSpeedScale": 1,
+
+  "MinMoveSpeedToPeek": 10,
+  "MinLateralRatio": 0.1,
+  "EngageTimeout": 6.0,
+  // bot 视野标志刷新慢会闪，接敌超过这么久也照样拉，保证每波都触发一次
+  "InvisibleCommitTime": 0.25,
+  "JustSeenWindow": 0.3,
+  "LostSightTime": 0.7,
+  "FireHoldMax": 2,
+  "ReengageCooldown": 0.6,
+
+  "ShoulderSpeed": 150,
+  "ShoulderOutTime": 0.21,
+  "ConfirmHoldMin": 0.1,
+  "ConfirmHoldMax": 0.1,
+  "ShoulderBackTime": 0.25,
+  "BaitPauseMin": 0.12,
+  "BaitPauseMax": 0.35,
+  "SwingRampTime": 0.1,
+  "SwingSpeedScale": 0.7,
+  "SwingMinTime": 0.16,
+  "StopSettleTime": 0.06,
+  "PeekCooldown": 0.0,
+
+  "FireForceLook": true,
+  "FireForceLookTime": 0.15,
+  "SwingMaxTime": 0.6,
+  // 大拉至少要拉出这么远才允许急停开枪（60 ≈ 一个身位）
+  "SwingMinTravel": 20,
+  "M1FireAfterSwing": true,
+  "BaitOnlyIfEnemyAiming": false,
+  "EnemyAimConeDeg": 20,
+  "BaitOnFirstContact": true,
+  "PeekBaitMinDistance": 60,
+
+  "Mode2Chance": 0.3,
+  "M2ForceLook": true,
+  // 蹲拉/大拉时把瞄准部位压到玩家身上（玩家看到的"是不是在看我"由它决定）
+  "M2AimAtEnemy": true,
+  "M2ForceLookTime": 0.15,
+  "CrouchSlideTime": 0.08,
+  "M2StandOutTime": 0.42,
+  "M2CrouchSettleTime": 0.12,
+  "M2CrouchTime": 0.06,
+  "M2MinTravel": 0,
+  "M2MaxExtraTime": 0.0,
+  "M2CrouchSpeedScale": 0.34,
+  "CrouchSlideDecay": 0.82,
+  "CrouchHoldMax": 2.5,
+
+  "ConfigVersion": 1
+}
