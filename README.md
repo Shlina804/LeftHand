@@ -1,13 +1,17 @@
 # LeftHand
 
+**Fork / 派生自 [ed0ard/CS2-Bot-Improver](https://github.com/ed0ard/CS2-Bot-Improver)** — 上游提供 bot 控制层（BotController / BotVision / RayTrace），本仓库只在其之上做“拟人化接敌走位”。
+Upstream provides the bot-control layer; this repo only adds human-like pre-engagement movement on top of it.
+
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+
 **A CounterStrikeSharp plugin that makes CS2 bots peek, bait and crouch-peek like a human instead of standing still or running straight at you.**
 
 [中文说明](#中文说明) · [English](#english)
 
-> Upstream / 上游: this plugin is built on top of the ideas and bot-control layer of
-> **[ed0ard/CS2-Bot-Improver](https://github.com/ed0ard/CS2-Bot-Improver)** (BotController / BotVision / RayTrace).
-> LeftHand does **not** replace that project — it adds movement choreography on top of it.
-> Credits to the original authors. / 本插件的技术源自与致谢上游项目 **ed0ard/CS2-Bot-Improver**，本仓库只在其之上增加“拟人化走位”。
+> Upstream / 上游: **[ed0ard/CS2-Bot-Improver](https://github.com/ed0ard/CS2-Bot-Improver)**
+> LeftHand does **not** replace that project — it adds movement choreography on top of it, and is released under the same
+> **AGPL-3.0** license. Credits to the original authors. / 本插件在 `git remote upstream` 上绑定该仓库，采用相同的 AGPL-3.0 协议，致谢原作者。
 
 ---
 
@@ -93,7 +97,9 @@ dotnet build -c Release
 
 ### 免责声明
 
-本项目用于**本地/listen server 的 bot 练习与服务器端 bot AI 研究**。请勿用于任何官方匹配、第三方平台（Faceit/5E 等）或影响其他真人玩家的竞技对局。使用自负其责。
+本项目用于**本地/listen server 的 bot 练习与服务器端 bot AI 研究**，与上游项目相同的边界：仅供离线 bot 对局、与朋友的自建私服、以及用于 bot 练习的私人专用服务器。请勿用于任何官方匹配、第三方平台（Faciet/5E 等）或影响其他真人玩家的竞技对局。
+
+许可证：**AGPL-3.0**（与上游一致）。修改后若以网络服务形式提供，需按 AGPL 第 13 条提供对应源码。
 
 ---
 
@@ -156,10 +162,12 @@ dotnet build -c Release
 
 ### Disclaimer
 
-For **local / listen-server bot practice and server-side bot AI research**. Do not use it on official matchmaking or third-party platforms (Faceit / 5E), and do not use it against real players in competitive games. Use at your own risk.
+For **local / listen-server bot practice and server-side bot AI research**, under the same boundaries as the upstream project: offline bot matches, private games with friends, and private dedicated servers used for bot play. Do not use it on official matchmaking or third-party platforms (Faceit / 5E), and do not use it against real players in competitive games.
+
+License: **AGPL-3.0** (same as upstream). If you run a modified version as a network service, section 13 requires you to offer the corresponding source.
 
 ### Credits
 
-- Upstream: **[ed0ard/CS2-Bot-Improver](https://github.com/ed0ard/CS2-Bot-Improver)** (BotController, BotVision, RayTrace) — this project builds on its bot-control approach.
+- Upstream: **[ed0ard/CS2-Bot-Improver](https://github.com/ed0ard/CS2-Bot-Improver)** (BotController, BotVision, RayTrace) — this project builds on its bot-control approach and is bound to it via `git remote upstream`.
 - CounterStrikeSharp: <https://github.com/rofl0r/counterstrikesharp>
 - Aim / recoil behaviour is intentionally left to the bot AI & external aim plugins; LeftHand only choreographs movement.
