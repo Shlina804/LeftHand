@@ -40,6 +40,17 @@
 
 ### 安装
 
+**方式 A：直接下整合包（最快）**
+
+下载 [`dist/LeftHand-v1.0.0.zip`](dist/LeftHand-v1.0.0.zip)，解压后把 `addons/` 和 `configs/` 覆盖到服务器的 `game/csgo/` 目录即可：
+
+```
+addons/counterstrikesharp/plugins/LeftHand/LeftHand.dll
+configs/plugins/LeftHand/LeftHand.json
+```
+
+**方式 B：手动部署**
+
 1. 服务器装好 Metamod + CounterStrikeSharp（本版针对 CS# **1.0.380 / net10.0** 编译）
 2. 把 `LeftHand.dll` 放到 `game/csgo/addons/counterstrikesharp/plugins/LeftHand/`
 3. 首次加载后会生成 `configs/plugins/LeftHand/LeftHand.json`，可直接用本仓库 `config/LeftHand.json` 覆盖
@@ -114,6 +125,17 @@ While still out of sight the bot pushes toward you at run speed; the instant it 
 - **`Utilities.GetPlayers()` does not return bots**; use `GetAllEntities()` + `player_controller`. `m_bSpottedByMask` gives false positives through walls.
 
 ### Install
+
+**A — one-click package (fastest)**
+
+Download [`dist/LeftHand-v1.0.0.zip`](dist/LeftHand-v1.0.0.zip) and merge its `addons/` and `configs/` into the server's `game/csgo/`:
+
+```
+addons/counterstrikesharp/plugins/LeftHand/LeftHand.dll
+configs/plugins/LeftHand/LeftHand.json
+```
+
+**B — manual**
 
 1. Metamod + CounterStrikeSharp on the server (built for CS# **1.0.380 / net10.0**)
 2. Drop `LeftHand.dll` into `game/csgo/addons/counterstrikesharp/plugins/LeftHand/`
