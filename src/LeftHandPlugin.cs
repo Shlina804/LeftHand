@@ -126,6 +126,10 @@ public class LeftHandConfig : BasePluginConfig
     [JsonPropertyName("BlindPeek")] public bool BlindPeek { get; set; } = true;
     [JsonPropertyName("BlindPeekDelay")] public float BlindPeekDelay { get; set; } = 0.20f;
     [JsonPropertyName("BlindPeekMaxDistance")] public float BlindPeekMaxDistance { get; set; } = 450f;
+    // 墙后循环骗枪（v1.01）：一轮 peek 大拉打完了还是没看见人（说明我还在墙后、他还没露头），
+    // 不要傻站着等——那就是"看到我才开始动"。稍等一小下就重开一轮，保证玩家任何时刻探头都看见我在做 peek 动作。
+    [JsonPropertyName("PeekLoopWhenBlind")] public bool PeekLoopWhenBlind { get; set; } = true;
+    [JsonPropertyName("PeekLoopPause")] public float PeekLoopPause { get; set; } = 0.28f;
 
     // ===== 模式2：蹲拉 =====
     // 模式1/模式2 现在纯随机挑（每次拉枪重新掷一次），不再根据进攻方/敌人速度判定。
@@ -574,6 +578,9 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
             // 看不见时（墙后预瞄）它通常没有 enemy，这时才用我们的隔墙选人逻辑。
             tgt = OwnTarget(me, bot);
             if (tgt == null) tgt = PickTarget(me, bot);
+            // 墙后盲 peek：前两条都要求"在我的正面锥角里 / 马上就要照面"，玩家从侧后摸过来就不认。
+            // 这里补一条不看朝向的：只要在 BlindPeekMaxDistance 内就认，bot 反正知道他在哪。
+            if (tgt == null && Config.BlindPeek) tgt = PickTargetBlind(me);
             st.DbgTarget = tgt != null;
             if (tgt == null)
             {
@@ -827,6 +834,24 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
                 if (st.Mode2 && now - st.FireStart > Config.CrouchHoldMax) st.Crouch = false;
                 if ((!visible && now - st.LastSeen > Config.LostSightTime) || now - st.FireStart > Config.FireHoldMax)
                 {
+                    // ---- 墙后循环骗枪 ----
+                    // 这一轮大拉全程都没看见人（SwingSightAt 还是 0，说明我是对着墙/空处做的动作），
+                    // 那就不是"打空"，而是"他还没露头"。这种情况别进冷却站着等，隔 PeekLoopPause 立刻再来一轮，
+                    // 这样玩家一探头看到的就是"我正在墙边 peek"，而不是"发现他→才开始动"。
+                    float dxl = tgt != null ? tgt.X - me.X : 0f;
+                    float dyl = tgt != null ? tgt.Y - me.Y : 0f;
+                    float dl = MathF.Sqrt(dxl * dxl + dyl * dyl);
+                    bool blindCycle = st.SwingSightAt <= 0f && !visible;
+                    if (Config.PeekLoopWhenBlind && blindCycle && tgt != null &&
+                        dl >= Config.PeekBaitMinDistance && dl <= Config.BlindPeekMaxDistance &&
+                        now - st.FireStart >= Config.PeekLoopPause)
+                    {
+                        st.PeekPlanned = false;                 // 允许再规划一次（触发点只认这个）
+                        st.PeekCooldownUntil = 0f;              // 循环里不受"一波只拉一次"限制
+                        st.EngageStart = now - Config.BlindPeekDelay; // 省掉重新接敌那 0.2s，直接进准备
+                        SetPhase(me, st, Phase.Track, now);
+                        break;
+                    }
                     EndEngage(me, st, bot, now); return;
                 }
                 break;
@@ -916,6 +941,26 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
     }
 
     // ================= 目标选择（隔墙范围限定） =================
+    /// <summary>
+    /// 墙后盲 peek 专用选人：完全不看朝向/锥角/速度，只要在 BlindPeekMaxDistance 内、活的、高度差不多就认。
+    /// 目的只有一个 —— bot 在墙后"知道人在哪"，能提前把 peek 做出来，而不是等人出现在视野里。
+    /// </summary>
+    private Snap? PickTargetBlind(Snap me)
+    {
+        Snap? best = null;
+        float bestScore = float.MaxValue;
+        foreach (var e in _alive)
+        {
+            if (e.Team == me.Team) continue;
+            if (MathF.Abs(e.Z - me.Z) > Config.PreaimMaxHeightDiff) continue;
+            float dx = e.X - me.X, dy = e.Y - me.Y;
+            float d = MathF.Sqrt(dx * dx + dy * dy);
+            if (d < 1f || d > Config.BlindPeekMaxDistance) continue;
+            if (d < bestScore) { bestScore = d; best = e; }
+        }
+        return best;
+    }
+
     private Snap? PickTarget(Snap me, IntPtr bot)
     {
         Snap? best = null;
