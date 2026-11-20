@@ -59,12 +59,12 @@
   "FireForceLookTime": 0.15,
   "SwingMaxTime": 1.0,
   // 大拉至少要拉出这么远才允许急停开枪（60 ≈ 一个身位）
-  "SwingMinTravel": 45,
+  "SwingMinTravel": 30,
   "M1FireAfterSwing": true,
   "BaitOnlyIfEnemyAiming": false,
   "EnemyAimConeDeg": 20,
   "BaitOnFirstContact": true,
-  "PeekBaitMinDistance": 60,
+  "PeekBaitMinDistance": 30,
 
   "Mode2Chance": 0.3,
   "M2ForceLook": true,
@@ -84,9 +84,9 @@
   "ConfigVersion": 1,
   "SuppressAimDuringPeek": true,
   "ForceFaceDuringPeek": false,
-  "SwingPostMoveMin": 0.30,
-  "SwingPostMoveMax": 0.30,
-  "SwingFullTravel": 55,
+  "SwingPostMoveMin": 0.18,
+  "SwingPostMoveMax": 0.18,
+  "SwingFullTravel": 36,
   "PeekSetupTime": 0.18,
   "SuppressVisibleDuringPeek": true,
   "SwingBaseSpeed": 240,
@@ -96,7 +96,7 @@
   "BlindPeekMaxDistance": 800,
   "FightWhenBotSees": true,
   "PreaimTargetSpotWhenHidden": true,
-  "NoCoverPeekChance": 0.6,
+  "NoCoverPeekChance": 1.0,
   "Mode2OnlyWhenHidden": true,
   "FaceEnemyInDuel": true
 }
