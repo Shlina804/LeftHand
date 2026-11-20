@@ -75,11 +75,11 @@ public class LeftHandConfig : BasePluginConfig
 
     // ===== 模式1：peek接大拉 =====
     // 一次完整的 peek 流程：探出约1/3 → 停住确认对手位置/爆头线 → 收回 → 墙后调整 → 整身大拉开打
-    [JsonPropertyName("ShoulderSpeed")] public float ShoulderSpeed { get; set; } = 115f;      // v1.01：150 仍偏快，115 ≈ 真人侧步
-    [JsonPropertyName("ShoulderOutTime")] public float ShoulderOutTime { get; set; } = 0.30f;  // 115×0.30 ≈ 34 单位 ≈ 半个身位
+    [JsonPropertyName("ShoulderSpeed")] public float ShoulderSpeed { get; set; } = 140f;      // v1.01：140 比 150 稳、比 115 快，探身/缩回有"抽一下"的感觉
+    [JsonPropertyName("ShoulderOutTime")] public float ShoulderOutTime { get; set; } = 0.24f;  // 140×0.24 ≈ 34 单位 ≈ 半个身位
     [JsonPropertyName("ConfirmHoldMin")] public float ConfirmHoldMin { get; set; } = 0.10f;    // 探出后停留 0.1s（让对手看见你露头）
     [JsonPropertyName("ConfirmHoldMax")] public float ConfirmHoldMax { get; set; } = 0.10f;
-    [JsonPropertyName("ShoulderBackTime")] public float ShoulderBackTime { get; set; } = 0.34f; // 115×0.34 ≈ 39，比探出多走一点，确保真退回掩体
+    [JsonPropertyName("ShoulderBackTime")] public float ShoulderBackTime { get; set; } = 0.28f; // 140×0.28 ≈ 39，比探出多走一点，确保真退回掩体
     [JsonPropertyName("BaitPauseMin")] public float BaitPauseMin { get; set; } = 0.20f;         // 缩回掩体后停 0.2s 再整身大拉
     [JsonPropertyName("BaitPauseMax")] public float BaitPauseMax { get; set; } = 0.20f;
     [JsonPropertyName("SwingRampTime")] public float SwingRampTime { get; set; } = 0.18f;      // 大拉从 0 加速上去的时间
@@ -116,6 +116,10 @@ public class LeftHandConfig : BasePluginConfig
     // 否则对玩家永远是"一看见就 Fire"，看不到模式1/模式2。
     [JsonPropertyName("BaitOnFirstContact")] public bool BaitOnFirstContact { get; set; } = true;
     [JsonPropertyName("PeekBaitMinDistance")] public float PeekBaitMinDistance { get; set; } = 100f; // 再近就直接开打，不做拉枪
+    // 墙后盲 peek（v1.01）：双方还互相看不见时，靠隔墙预瞄知道位置，就先探半个身位 → 缩回 → 整身拉出
+    [JsonPropertyName("BlindPeek")] public bool BlindPeek { get; set; } = true;
+    [JsonPropertyName("BlindPeekDelay")] public float BlindPeekDelay { get; set; } = 0.20f;
+    [JsonPropertyName("BlindPeekMaxDistance")] public float BlindPeekMaxDistance { get; set; } = 450f;
 
     // ===== 模式2：蹲拉 =====
     // 模式1/模式2 现在纯随机挑（每次拉枪重新掷一次），不再根据进攻方/敌人速度判定。
@@ -623,6 +627,23 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
                 // 骗枪必须"双方都看得到"才有意义：在你自己视野外拉一下，你根本看不到，等于白做。
                 // 所以只在真的照面时拉：现在看得见，或刚刚（JustSeenWindow 内）还看得见。
                 bool contact = visible || (st.LastSeen > 0f && now - st.LastSeen <= Config.JustSeenWindow);
+                // ---- 墙后盲 peek（v1.01，玩家要求）----
+                // bot 隔墙就已经知道人在哪（PreaimMaxDistance 的隔墙选人 + 隔墙瞄头），
+                // 所以不等"玩家看见我"才做动作：还躲在掩体后时，就先探出半个身位给玩家看，
+                // 缩回，再从掩体后整身拉出来打。玩家看到的是"从墙后 peek 我一下再走"。
+                if (!contact && Config.BlindPeek && !st.PeekPlanned && tgt != null && now >= st.PeekCooldownUntil)
+                {
+                    float dxb = tgt.X - me.X, dyb = tgt.Y - me.Y;
+                    float db = MathF.Sqrt(dxb * dxb + dyb * dyb);
+                    if (db >= Config.PeekBaitMinDistance && db <= Config.BlindPeekMaxDistance &&
+                        now - st.EngageStart >= Config.BlindPeekDelay &&
+                        PlanPeekAtContact(me, tgt, st))
+                    {
+                        if (st.Mode2) { st.Crouch = false; SetPhase(me, st, Phase.M2Slide, now); }
+                        else SetPhase(me, st, Phase.M1ShoulderOut, now);
+                        break;
+                    }
+                }
                 // 蹲拉（21:51 那版机制）：还没照面时沿着自己的寻路方向用满速往外走，
                 // 一露头就立刻蹲下滑一步 —— 玩家看到的是"蹲着滑出来的"。
                 if (!contact && st.PeekPlanned && st.Mode2 && me.OnGround)
