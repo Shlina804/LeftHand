@@ -46,7 +46,7 @@
   "ShoulderOutTime": 0.17,
   "ConfirmHoldMin": 0.10,
   "ConfirmHoldMax": 0.10,
-  "ShoulderBackTime": 0.20,
+  "ShoulderBackTime": 0.26,
   "BaitPauseMin": 0.12,
   "BaitPauseMax": 0.35,
   "SwingRampTime": 0.18,
@@ -87,5 +87,6 @@
   "SwingPostMoveMin": 0.30,
   "SwingPostMoveMax": 0.30,
   "SwingFullTravel": 55,
-  "PeekSetupTime": 0.18
+  "PeekSetupTime": 0.18,
+  "SuppressVisibleDuringPeek": true
 }

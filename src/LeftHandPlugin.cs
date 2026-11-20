@@ -79,7 +79,7 @@ public class LeftHandConfig : BasePluginConfig
     [JsonPropertyName("ShoulderOutTime")] public float ShoulderOutTime { get; set; } = 0.17f;  // 140×0.17 ≈ 24 单位 ≈ 1/3 个身位
     [JsonPropertyName("ConfirmHoldMin")] public float ConfirmHoldMin { get; set; } = 0.10f;    // 探出后停留 0.1s（让对手看见你露头）
     [JsonPropertyName("ConfirmHoldMax")] public float ConfirmHoldMax { get; set; } = 0.10f;
-    [JsonPropertyName("ShoulderBackTime")] public float ShoulderBackTime { get; set; } = 0.20f; // 140×0.20 ≈ 28，比探出多走一点，确保真退回掩体
+    [JsonPropertyName("ShoulderBackTime")] public float ShoulderBackTime { get; set; } = 0.26f; // 140×0.26 ≈ 36：探出只有 ~20（起步是加速的），多走一截才能真退回掩体
     // 探出之前的"墙前准备"：先站定刹停、把准星压到人头上，再探出去（不然看起来是"看见你才动"）
     [JsonPropertyName("PeekSetupTime")] public float PeekSetupTime { get; set; } = 0.18f;
     [JsonPropertyName("BaitPauseMin")] public float BaitPauseMin { get; set; } = 0.20f;         // 缩回掩体后停 0.2s 再整身大拉
@@ -132,9 +132,10 @@ public class LeftHandConfig : BasePluginConfig
     // 蹲下要先原地顿一下：带速写蹲姿会被引擎取消，人就站着跑出来
     [JsonPropertyName("M2CrouchSettleTime")] public float M2CrouchSettleTime { get; set; } = 0.12f;
     // 偷看那几拍不许开火：按住 bot 的"正在瞄准敌人"，骗枪才是纯骗枪。
-    // v1.01：只回退 ForceFaceDuringPeek（写 bodyAngles 会让模型抽动），这一项保留，
-    // 否则 bot 一露头就自己扣扳机，玩家根本看不到 peek。
     [JsonPropertyName("SuppressAimDuringPeek")] public bool SuppressAimDuringPeek { get; set; } = true;
+    // 步枪 AI 就算 m_isAimingAtEnemy 被按成 false，也有可能在探出那一拍抢一枪；
+    // 再把它当帧的"敌人可见"也按掉，步枪就不会在偷看时开枪了（这一帧不参与判定，下一帧自动恢复）。
+    [JsonPropertyName("SuppressVisibleDuringPeek")] public bool SuppressVisibleDuringPeek { get; set; } = true;
     // 偷看/蹲拉时身体正对敌人（否则侧步会让人侧着身子看你）
     [JsonPropertyName("ForceFaceDuringPeek")] public bool ForceFaceDuringPeek { get; set; } = false;
     [JsonPropertyName("M2StandOutTime")] public float M2StandOutTime { get; set; } = 0.14f;   // 站姿段：先把身位拉出来
@@ -630,10 +631,10 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
                 // 所以只在真的照面时拉：现在看得见，或刚刚（JustSeenWindow 内）还看得见。
                 bool contact = visible || (st.LastSeen > 0f && now - st.LastSeen <= Config.JustSeenWindow);
                 // ---- 墙后盲 peek（v1.01，玩家要求）----
-                // bot 隔墙就已经知道人在哪（PreaimMaxDistance 的隔墙选人 + 隔墙瞄头），
-                // 所以不等"玩家看见我"才做动作：还躲在掩体后时，就先探出半个身位给玩家看，
-                // 缩回，再从掩体后整身拉出来打。玩家看到的是"从墙后 peek 我一下再走"。
-                if (!contact && Config.BlindPeek && !st.PeekPlanned && tgt != null && now >= st.PeekCooldownUntil)
+                // bot 隔墙就已经知道人在哪（PreaimMaxDistance 的隔墙选人 + 隔墙瞄头）。
+                // 关键：**不要求"玩家看得见我"**，也不要求 bot 自己有视线 —— 只要距离合适就先站定准备再探，
+                // 这样每一波都是"先在墙边站好、再探出"，而不是"看到你了才开始动"。
+                if (Config.BlindPeek && !st.PeekPlanned && tgt != null && now >= st.PeekCooldownUntil)
                 {
                     float dxb = tgt.X - me.X, dyb = tgt.Y - me.Y;
                     float db = MathF.Sqrt(dxb * dxb + dyb * dyb);
@@ -847,6 +848,12 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
         {
             try { Schema.GetRef<bool>(bot, "CCSBot", "m_isAimingAtEnemy") = false; }
             catch { BotFieldsFailed(); }
+            // 步枪抢枪：连"这一帧的敌人可见"一起按掉，AI 就不会扣扳机；下一帧它自己会重新算回来
+            if (Config.SuppressVisibleDuringPeek)
+            {
+                try { Schema.GetRef<bool>(bot, "CCSBot", "m_isEnemyVisible") = false; }
+                catch { BotFieldsFailed(); }
+            }
         }
         st.DbgHeadAim = _headAimFlag;
         st.DbgSpeed = overrideVel ? MathF.Sqrt(vx * vx + vy * vy) : me.Speed2D;
