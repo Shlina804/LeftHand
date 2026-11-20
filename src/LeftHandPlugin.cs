@@ -141,9 +141,6 @@ public class LeftHandConfig : BasePluginConfig
     [JsonPropertyName("Mode2OnlyWhenHidden")] public bool Mode2OnlyWhenHidden { get; set; } = true;
     // true = 对枪全程正面对着玩家：Fire / M1Swing / M1Stop 这几拍每帧把身体朝向压到玩家身上，不侧身不乱转。
     [JsonPropertyName("FaceEnemyInDuel")] public bool FaceEnemyInDuel { get; set; } = true;
-    // 对枪正面朝向的纠正容差（度）：只有身体朝向与玩家方向差超过这个值才掰一次，
-    // 避免每帧硬掰和 bot 自己的 AI 抢写（那就是"打不死之后一抽一抽"）。
-    [JsonPropertyName("DuelFaceToleranceDeg")] public float DuelFaceToleranceDeg { get; set; } = 12f;
 
     // ===== 模式2：蹲拉 =====
     // 模式1/模式2 现在纯随机挑（每次拉枪重新掷一次），不再根据进攻方/敌人速度判定。
@@ -885,12 +882,13 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
             float hold = st.Mode2 ? Config.M2ForceLookTime : Config.FireForceLookTime;
             if (now - st.FireStart <= hold) forceLook = true;
         }
-        // 对枪正面朝向改到写角度那一步用"容差纠正"，这里不再每帧强写 m_lookYaw
-        // （每帧和 BotAimImprover 抢着写同一个值，就是"打不死就一抽一抽"的来源）。
+        bool duelLook = Config.FaceEnemyInDuel &&
+                        (st.Phase == Phase.Fire || st.Phase == Phase.M1Swing || st.Phase == Phase.M1Stop);
+        if (duelLook) forceLook = true;
         // 瞄准完全交还 bot / BotAimImprover：这里不再做任何后坐力补偿
         // 蹲拉/大拉这段不光要"朝向对着人"，还要把瞄准部位压到人身上，否则它只是"头转过来、准星还朝外面"
-        bool aimSpot = forceLook && st.Phase != Phase.Fire && Config.M2AimAtEnemy &&
-                       (MathF.Abs(hx) + MathF.Abs(hy) + MathF.Abs(hz) > 0.01f);
+        bool aimSpot = Config.M2AimAtEnemy && (MathF.Abs(hx) + MathF.Abs(hy) + MathF.Abs(hz) > 0.01f) &&
+                       (duelLook || (forceLook && st.Phase != Phase.Fire));
         _headAimFlag = false;
         WriteBot(bot, pitch, yaw, hx, hy, hz, st.Crouch, doAim, forceLook, aimSpot);
         // 偷看那几拍不许开火：bot 自己的 AI 一有视线就会扣扳机，
@@ -923,24 +921,6 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
             yaw = MathF.Atan2(fdy, fdx) * R2D;
             pitch = Math.Clamp(-MathF.Atan2(tgt.Z + tgt.EyeOff - me.Z, MathF.Max(1f, MathF.Sqrt(fdx * fdx + fdy * fdy))) * R2D, -89f, 89f);
             bodyAngles = true;
-        }
-        // 对枪正面朝向（v1.01）：只在"偏差超过容差"时才掰一次。
-        // 每帧硬掰会和 bot 自己的 AI 抢写，观感就是"前几发没打死之后一抽一抽"。
-        // 用容差就能做到"一直正对你、又不抖"。
-        bool duelFace = Config.FaceEnemyInDuel && hasTgt && !peekFace &&
-                        (st.Phase == Phase.Fire || st.Phase == Phase.M1Swing || st.Phase == Phase.M1Stop);
-        if (duelFace)
-        {
-            float fdx = tgt!.X - me.X, fdy = tgt.Y - me.Y;
-            float fd = MathF.Max(1f, MathF.Sqrt(fdx * fdx + fdy * fdy));
-            float dYaw = MathF.Abs(NormYaw(MathF.Atan2(fdy, fdx) * R2D - me.Yaw));
-            float dPitch = MathF.Abs(-MathF.Atan2(tgt.Z + tgt.EyeOff - me.Z, fd) * R2D - me.Pitch);
-            if (dYaw > Config.DuelFaceToleranceDeg || dPitch > Config.DuelFaceToleranceDeg)
-            {
-                yaw = MathF.Atan2(fdy, fdx) * R2D;
-                pitch = Math.Clamp(-MathF.Atan2(tgt.Z + tgt.EyeOff - me.Z, fd) * R2D, -89f, 89f);
-                bodyAngles = true;
-            }
         }
         if (bodyAngles) { _ang.X = pitch; _ang.Y = yaw; _ang.Z = 0f; }
         else { _ang.X = me.Pitch; _ang.Y = me.Yaw; _ang.Z = 0f; }   // 只为了让 Teleport 参数合法，值就是它当前视角

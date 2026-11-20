@@ -98,6 +98,5 @@
   "PreaimTargetSpotWhenHidden": true,
   "NoCoverPeekChance": 0.6,
   "Mode2OnlyWhenHidden": true,
-  "FaceEnemyInDuel": true,
-  "DuelFaceToleranceDeg": 12
+  "FaceEnemyInDuel": true
 }
