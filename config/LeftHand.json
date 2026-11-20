@@ -43,10 +43,10 @@
   "ReengageCooldown": 0.6,
 
   "ShoulderSpeed": 140,
-  "ShoulderOutTime": 0.24,
+  "ShoulderOutTime": 0.17,
   "ConfirmHoldMin": 0.10,
   "ConfirmHoldMax": 0.10,
-  "ShoulderBackTime": 0.28,
+  "ShoulderBackTime": 0.20,
   "BaitPauseMin": 0.12,
   "BaitPauseMax": 0.35,
   "SwingRampTime": 0.18,
@@ -86,5 +86,6 @@
   "ForceFaceDuringPeek": false,
   "SwingPostMoveMin": 0.30,
   "SwingPostMoveMax": 0.30,
-  "SwingFullTravel": 55
+  "SwingFullTravel": 55,
+  "PeekSetupTime": 0.18
 }

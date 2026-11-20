@@ -76,10 +76,12 @@ public class LeftHandConfig : BasePluginConfig
     // ===== 模式1：peek接大拉 =====
     // 一次完整的 peek 流程：探出约1/3 → 停住确认对手位置/爆头线 → 收回 → 墙后调整 → 整身大拉开打
     [JsonPropertyName("ShoulderSpeed")] public float ShoulderSpeed { get; set; } = 140f;      // v1.01：140 比 150 稳、比 115 快，探身/缩回有"抽一下"的感觉
-    [JsonPropertyName("ShoulderOutTime")] public float ShoulderOutTime { get; set; } = 0.24f;  // 140×0.24 ≈ 34 单位 ≈ 半个身位
+    [JsonPropertyName("ShoulderOutTime")] public float ShoulderOutTime { get; set; } = 0.17f;  // 140×0.17 ≈ 24 单位 ≈ 1/3 个身位
     [JsonPropertyName("ConfirmHoldMin")] public float ConfirmHoldMin { get; set; } = 0.10f;    // 探出后停留 0.1s（让对手看见你露头）
     [JsonPropertyName("ConfirmHoldMax")] public float ConfirmHoldMax { get; set; } = 0.10f;
-    [JsonPropertyName("ShoulderBackTime")] public float ShoulderBackTime { get; set; } = 0.28f; // 140×0.28 ≈ 39，比探出多走一点，确保真退回掩体
+    [JsonPropertyName("ShoulderBackTime")] public float ShoulderBackTime { get; set; } = 0.20f; // 140×0.20 ≈ 28，比探出多走一点，确保真退回掩体
+    // 探出之前的"墙前准备"：先站定刹停、把准星压到人头上，再探出去（不然看起来是"看见你才动"）
+    [JsonPropertyName("PeekSetupTime")] public float PeekSetupTime { get; set; } = 0.18f;
     [JsonPropertyName("BaitPauseMin")] public float BaitPauseMin { get; set; } = 0.20f;         // 缩回掩体后停 0.2s 再整身大拉
     [JsonPropertyName("BaitPauseMax")] public float BaitPauseMax { get; set; } = 0.20f;
     [JsonPropertyName("SwingRampTime")] public float SwingRampTime { get; set; } = 0.18f;      // 大拉从 0 加速上去的时间
@@ -157,7 +159,7 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
 
     private const float R2D = 57.29578f;
 
-    private enum Phase { None, Track, M1ShoulderOut, M1Confirm, M1ShoulderBack, M1Pause, M1Swing, M1Stop, M2Slide, M2Crouch, Fire, Cooldown }
+    private enum Phase { None, Track, M1Setup, M1ShoulderOut, M1Confirm, M1ShoulderBack, M1Pause, M1Swing, M1Stop, M2Slide, M2Crouch, Fire, Cooldown }
 
     private sealed class BotState
     {
@@ -587,7 +589,7 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
             {
                 // 目标在拉枪中途死了/消失：这一套动作已经不需要它了（方向早就记在 PeekX/PeekY 里），
                 // 直接掐断会导致"缩回掩体就没下文"、蹲拉走一半重来。让它按时间把剩下几拍走完。
-                bool seqPhase = st.Phase is Phase.M1ShoulderOut or Phase.M1Confirm or Phase.M1ShoulderBack
+                bool seqPhase = st.Phase is Phase.M1Setup or Phase.M1ShoulderOut or Phase.M1Confirm or Phase.M1ShoulderBack
                                 or Phase.M1Pause or Phase.M1Swing or Phase.M1Stop
                                 or Phase.M2Slide or Phase.M2Crouch;
                 if ((st.PeekPlanned || seqPhase) && st.Phase is not (Phase.Fire or Phase.Cooldown)) tgt = null;
@@ -640,7 +642,8 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
                         PlanPeekAtContact(me, tgt, st))
                     {
                         if (st.Mode2) { st.Crouch = false; SetPhase(me, st, Phase.M2Slide, now); }
-                        else SetPhase(me, st, Phase.M1ShoulderOut, now);
+                        // 模式1：先在墙前站定"准备好"（PeekSetup 那拍），再探出 —— 不是看见你了才动作
+                        else { st.PauseDur = Config.PeekSetupTime; SetPhase(me, st, Phase.M1Setup, now); }
                         break;
                     }
                 }
@@ -670,7 +673,7 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
                             {
                                 baited = true;
                                 if (st.Mode2) { st.Crouch = false; SetPhase(me, st, Phase.M2Slide, now); } // 先站着拉，一会儿才蹲
-                                else SetPhase(me, st, Phase.M1ShoulderOut, now);
+                                else { st.PauseDur = Config.PeekSetupTime; SetPhase(me, st, Phase.M1Setup, now); }
                             }
                         }
                         if (!baited) EnterFire(me, st, now);
@@ -680,7 +683,7 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
                     // 对手没在瞄我也照拉：拉枪只需要"接敌"，不需要"它正在瞄我"。
                     // 只有刚照面的极短窗口（还在判断要不要拉）才看这个条件。
                     else if (!Config.BaitOnlyIfEnemyAiming || IsAimingAt(tgt, me) || now - st.EngageStart >= 0.35f)
-                        SetPhase(me, st, Phase.M1ShoulderOut, now);
+                    { st.PauseDur = Config.PeekSetupTime; SetPhase(me, st, Phase.M1Setup, now); }
                     else EnterFire(me, st, now); // 对手没瞄我，直接打
                 }
                 else if (st.PeekPlanned && st.Mode2 && me.OnGround)
@@ -692,6 +695,12 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
                         overrideVel = true; vx = me.VX / sp * runSpeed; vy = me.VY / sp * runSpeed;
                     }
                 }
+                break;
+
+            case Phase.M1Setup: // 墙前准备：先站定、刹住、把准星压到对手头上，再从掩体后探出去
+                overrideVel = me.OnGround;
+                if (me.OnGround) { vx = me.VX * 0.15f; vy = me.VY * 0.15f; }   // 刹停，站在掩体前"就位"
+                if (elapsed >= st.PauseDur) SetPhase(me, st, Phase.M1ShoulderOut, now);
                 break;
 
             case Phase.M1ShoulderOut: // 探出约1/3身位（加速度起步，别一帧弹出）
@@ -833,7 +842,7 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
         // 偷看那几拍不许开火：bot 自己的 AI 一有视线就会扣扳机，
         // 这里把它的"正在瞄准敌人"标志按住，只骗枪、不还手。
         if (Config.SuppressAimDuringPeek && bot != IntPtr.Zero && _botFieldsOk &&
-            (st.Phase == Phase.M1ShoulderOut || st.Phase == Phase.M1Confirm ||
+            (st.Phase == Phase.M1Setup || st.Phase == Phase.M1ShoulderOut || st.Phase == Phase.M1Confirm ||
              st.Phase == Phase.M1ShoulderBack || st.Phase == Phase.M1Pause))
         {
             try { Schema.GetRef<bool>(bot, "CCSBot", "m_isAimingAtEnemy") = false; }
