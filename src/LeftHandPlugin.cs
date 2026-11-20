@@ -136,6 +136,11 @@ public class LeftHandConfig : BasePluginConfig
     [JsonPropertyName("FightWhenBotSees")] public bool FightWhenBotSees { get; set; } = true;
     // 有视线（没掩体）时仍然做一次 peek 假动作的概率：0 = 永远不 peek 直接打，1 = 每波都先骗一枪。
     [JsonPropertyName("NoCoverPeekChance")] public float NoCoverPeekChance { get; set; } = 0.6f;
+    // true = 只要已经照面（玩家看得见我 / 他在拉我），一律走模式1（shoulder peek + 整身大拉），
+    // 模式2 蹲拉只在"他没看见我、我在墙后先动"的时候才用。
+    [JsonPropertyName("Mode2OnlyWhenHidden")] public bool Mode2OnlyWhenHidden { get; set; } = true;
+    // true = 对枪全程正面对着玩家：Fire / M1Swing / M1Stop 这几拍每帧把身体朝向压到玩家身上，不侧身不乱转。
+    [JsonPropertyName("FaceEnemyInDuel")] public bool FaceEnemyInDuel { get; set; } = true;
 
     // ===== 模式2：蹲拉 =====
     // 模式1/模式2 现在纯随机挑（每次拉枪重新掷一次），不再根据进攻方/敌人速度判定。
@@ -682,6 +687,8 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
                         now - st.EngageStart >= Config.BlindPeekDelay &&
                         PlanPeekAtContact(me, tgt, st))
                     {
+                        // 只要已经照面（玩家看得见我 / 我与他正对着拉），一律走模式1，不做蹲拉
+                        if (st.Mode2 && Config.Mode2OnlyWhenHidden && contact) st.Mode2 = false;
                         if (st.Mode2) { st.Crouch = false; SetPhase(me, st, Phase.M2Slide, now); }
                         // 模式1：先在墙前站定"准备好"（PeekSetup 那拍），再探出 —— 不是看见你了才动作
                         else { st.PauseDur = Config.PeekSetupTime; SetPhase(me, st, Phase.M1Setup, now); }
@@ -713,6 +720,7 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
                             if (dist0 >= Config.PeekBaitMinDistance && PlanPeekAtContact(me, tgt, st))
                             {
                                 baited = true;
+                                if (Config.Mode2OnlyWhenHidden) st.Mode2 = false;   // 已经照面 → 只做模式1 大拉
                                 if (st.Mode2) { st.Crouch = false; SetPhase(me, st, Phase.M2Slide, now); } // 先站着拉，一会儿才蹲
                                 else { st.PauseDur = Config.PeekSetupTime; SetPhase(me, st, Phase.M1Setup, now); }
                             }
@@ -720,7 +728,7 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
                         if (!baited) EnterFire(me, st, now);
                     }
                     else if (now < st.PeekCooldownUntil) { EnterFire(me, st, now); } // 冷却中，直接打
-                    else if (st.Mode2) { st.Crouch = false; SetPhase(me, st, Phase.M2Slide, now); } // 先站着拉，一会儿才蹲
+                    else if (st.Mode2 && !Config.Mode2OnlyWhenHidden) { st.Crouch = false; SetPhase(me, st, Phase.M2Slide, now); } // 先站着拉，一会儿才蹲
                     // 对手没在瞄我也照拉：拉枪只需要"接敌"，不需要"它正在瞄我"。
                     // 只有刚照面的极短窗口（还在判断要不要拉）才看这个条件。
                     else if (!Config.BaitOnlyIfEnemyAiming || IsAimingAt(tgt, me) || now - st.EngageStart >= 0.35f)
@@ -909,6 +917,18 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
             float fdx = tgt!.X - me.X, fdy = tgt.Y - me.Y;
             yaw = MathF.Atan2(fdy, fdx) * R2D;
             pitch = Math.Clamp(-MathF.Atan2(tgt.Z + tgt.EyeOff - me.Z, MathF.Max(1f, MathF.Sqrt(fdx * fdx + fdy * fdy))) * R2D, -89f, 89f);
+            bodyAngles = true;
+        }
+        // 对枪时正面看我（v1.01 玩家要求）：开火/整身大拉/急停这几拍，每帧把身体朝向直接压到"我"身上，
+        // 不做任何侧身、不让它到处乱转。这里写的是恒定目标方向，所以不会有"毒液抽动"那种抖动。
+        bool duelFace = Config.FaceEnemyInDuel && hasTgt &&
+                        (st.Phase == Phase.Fire || st.Phase == Phase.M1Swing || st.Phase == Phase.M1Stop);
+        if (duelFace)
+        {
+            float fdx = tgt!.X - me.X, fdy = tgt.Y - me.Y;
+            float fd = MathF.Max(1f, MathF.Sqrt(fdx * fdx + fdy * fdy));
+            yaw = MathF.Atan2(fdy, fdx) * R2D;
+            pitch = Math.Clamp(-MathF.Atan2(tgt.Z + tgt.EyeOff - me.Z, fd) * R2D, -89f, 89f);
             bodyAngles = true;
         }
         if (bodyAngles) { _ang.X = pitch; _ang.Y = yaw; _ang.Z = 0f; }
