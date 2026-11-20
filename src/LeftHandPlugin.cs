@@ -85,10 +85,14 @@ public class LeftHandConfig : BasePluginConfig
     [JsonPropertyName("BaitPauseMin")] public float BaitPauseMin { get; set; } = 0.20f;         // 缩回掩体后停 0.2s 再整身大拉
     [JsonPropertyName("BaitPauseMax")] public float BaitPauseMax { get; set; } = 0.20f;
     [JsonPropertyName("SwingRampTime")] public float SwingRampTime { get; set; } = 0.18f;      // 大拉从 0 加速上去的时间
-    [JsonPropertyName("SwingSpeedScale")] public float SwingSpeedScale { get; set; } = 0.55f;    // v1.01：0.70 仍偏"瞬移"，0.55 ≈ 132/秒
+    [JsonPropertyName("SwingSpeedScale")] public float SwingSpeedScale { get; set; } = 0.55f;
+    // 大拉的固定基准速度：解掉武器差异，让 狙/步枪/微冲 拉出来是同一个速度（240 × 0.55 ≈ 132/秒）
+    [JsonPropertyName("SwingBaseSpeed")] public float SwingBaseSpeed { get; set; } = 240f;
     [JsonPropertyName("SwingMinTime")] public float SwingMinTime { get; set; } = 0.16f;
     // 大拉一看到人就硬停：速度归零后还要等这么多秒才开火，等弹道扩散归零（第一枪才准）
     [JsonPropertyName("StopSettleTime")] public float StopSettleTime { get; set; } = 0.06f;
+    // 狙（AWP/鸟狙/自动狙）开火前要多停一会儿才准：急停稳枪时间额外加这么多
+    [JsonPropertyName("SniperSettleExtra")] public float SniperSettleExtra { get; set; } = 0.06f;
     // 拉枪后的冷却：默认 0 = 完全关闭，不再限制同一波对枪里能拉几次。
     // 想恢复限制就把值调成想要的秒数（例如 2）。
     [JsonPropertyName("PeekCooldown")] public float PeekCooldown { get; set; } = 0f;
@@ -742,7 +746,9 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
             case Phase.M1Swing: // 大拉：从 0 加速到满速，避免看起来像瞬移
                 {
                     float r = Math.Clamp(elapsed / MathF.Max(0.03f, Config.SwingRampTime), 0.2f, 1f);
-                    float swingSpeed = runSpeed * Config.SwingSpeedScale;
+                    // v1.01：大拉速度用固定基准（默认 240），不再跟武器跑速挂钩 ——
+                    // 否则 AWP（200）比步枪（225）慢一截，狙的拉枪看起来就不是"步枪那样"了。
+                    float swingSpeed = Config.SwingBaseSpeed * Config.SwingSpeedScale;
                     overrideVel = true; vx = st.PeekX * swingSpeed * r; vy = st.PeekY * swingSpeed * r;
                     float travelled = MathF.Sqrt((me.X - st.SwingX0) * (me.X - st.SwingX0) + (me.Y - st.SwingY0) * (me.Y - st.SwingY0));
 
@@ -754,19 +760,19 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
                     bool postShotDone = st.SwingSightAt > 0f && (now - st.SwingSightAt) >= st.SwingPostMove;
                     if (postShotDone && travelled >= Config.SwingFullTravel)
                     {
-                        st.PauseDur = Config.StopSettleTime;
+                        st.PauseDur = SettleFor(me.Pawn);
                         SetPhase(me, st, Phase.M1Stop, now);
                     }
                     else if (st.SwingSightAt > 0f && (now - st.SwingSightAt) >= st.SwingPostMove + 0.25f)
                     {
                         // 兜底：看见很久了还被墙/人卡住拉不动，别再傻站外面送枪
-                        st.PauseDur = Config.StopSettleTime;
+                        st.PauseDur = SettleFor(me.Pawn);
                         SetPhase(me, st, Phase.M1Stop, now);
                     }
                     else if (elapsed >= Config.SwingMaxTime)
                     {
                         if (Config.M1FireAfterSwing) EnterFireFromPeek(me, st, now);
-                        else { st.PauseDur = Config.StopSettleTime; SetPhase(me, st, Phase.M1Stop, now); }
+                        else { st.PauseDur = SettleFor(me.Pawn); SetPhase(me, st, Phase.M1Stop, now); }
                     }
                 }
                 break;
@@ -1194,6 +1200,14 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
         var n = WeaponName(p);
         if (n.Contains("knife") || n.Contains("bayonet")) return 250f;
         return WeaponSpeeds.TryGetValue(n, out var s) ? s : 230f;
+    }
+
+    private float SettleFor(CCSPlayerPawn p)
+    {
+        // 狙开火前要多停一拍才准（AWP/鸟狙/自动狙）
+        var n = WeaponName(p);
+        bool sniper = n.Contains("awp") || n.Contains("ssg08") || n.Contains("scar20") || n.Contains("g3sg1");
+        return Config.StopSettleTime + (sniper ? Config.SniperSettleExtra : 0f);
     }
 
     private static bool WeaponAllowsStop(CCSPlayerPawn p)

@@ -88,5 +88,7 @@
   "SwingPostMoveMax": 0.30,
   "SwingFullTravel": 55,
   "PeekSetupTime": 0.18,
-  "SuppressVisibleDuringPeek": true
+  "SuppressVisibleDuringPeek": true,
+  "SwingBaseSpeed": 240,
+  "SniperSettleExtra": 0.06
 }
