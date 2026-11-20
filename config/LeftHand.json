@@ -52,14 +52,14 @@
   "SwingRampTime": 0.18,
   "SwingSpeedScale": 0.78,
   "SwingMinTime": 0.16,
-  "StopSettleTime": 0.06,
+  "StopSettleTime": 0.05,
   "PeekCooldown": 0.0,
 
   "FireForceLook": true,
   "FireForceLookTime": 0.15,
-  "SwingMaxTime": 1.0,
+  "SwingMaxTime": 1.6,
   // 大拉至少要拉出这么远才允许急停开枪（60 ≈ 一个身位）
-  "SwingMinTravel": 30,
+  "SwingMinTravel": 90,
   "M1FireAfterSwing": true,
   "BaitOnlyIfEnemyAiming": false,
   "EnemyAimConeDeg": 20,
@@ -84,9 +84,9 @@
   "ConfigVersion": 1,
   "SuppressAimDuringPeek": true,
   "ForceFaceDuringPeek": false,
-  "SwingPostMoveMin": 0.18,
-  "SwingPostMoveMax": 0.18,
-  "SwingFullTravel": 36,
+  "SwingPostMoveMin": 0.15,
+  "SwingPostMoveMax": 0.15,
+  "SwingFullTravel": 120,
   "PeekSetupTime": 0.18,
   "SuppressVisibleDuringPeek": true,
   "SwingBaseSpeed": 240,
@@ -98,5 +98,7 @@
   "PreaimTargetSpotWhenHidden": true,
   "NoCoverPeekChance": 1.0,
   "Mode2OnlyWhenHidden": true,
-  "FaceEnemyInDuel": true
+  "FaceEnemyInDuel": true,
+  "FaceEnemyDuringSwing": true,
+  "SwingFaceToleranceDeg": 18
 }

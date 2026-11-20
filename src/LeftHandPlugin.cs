@@ -141,6 +141,9 @@ public class LeftHandConfig : BasePluginConfig
     [JsonPropertyName("Mode2OnlyWhenHidden")] public bool Mode2OnlyWhenHidden { get; set; } = true;
     // true = 对枪全程正面对着玩家：Fire / M1Swing / M1Stop 这几拍每帧把身体朝向压到玩家身上，不侧身不乱转。
     [JsonPropertyName("FaceEnemyInDuel")] public bool FaceEnemyInDuel { get; set; } = true;
+    // 整身大拉/急停这两拍"看着我拉出来"：身体朝向偏差超过容差才掰一次（不每帧抢写，避免抽动）。
+    [JsonPropertyName("FaceEnemyDuringSwing")] public bool FaceEnemyDuringSwing { get; set; } = true;
+    [JsonPropertyName("SwingFaceToleranceDeg")] public float SwingFaceToleranceDeg { get; set; } = 18f;
 
     // ===== 模式2：蹲拉 =====
     // 模式1/模式2 现在纯随机挑（每次拉枪重新掷一次），不再根据进攻方/敌人速度判定。
@@ -921,6 +924,24 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
             yaw = MathF.Atan2(fdy, fdx) * R2D;
             pitch = Math.Clamp(-MathF.Atan2(tgt.Z + tgt.EyeOff - me.Z, MathF.Max(1f, MathF.Sqrt(fdx * fdx + fdy * fdy))) * R2D, -89f, 89f);
             bodyAngles = true;
+        }
+        // 整身大拉那几拍"看着我拉出来"（v1.01 玩家要求）：只在偏差超过容差时掰一次，
+        // 所以是一直正面对着人拉，但不会每帧和 AI 抢写（抢写就是"一抽一抽"）。
+        bool swingFace = Config.FaceEnemyDuringSwing && hasTgt && !peekFace &&
+                         (st.Phase == Phase.M1Swing || st.Phase == Phase.M1Stop);
+        if (swingFace)
+        {
+            float fdx = tgt!.X - me.X, fdy = tgt.Y - me.Y;
+            float fd = MathF.Max(1f, MathF.Sqrt(fdx * fdx + fdy * fdy));
+            float wantYaw = MathF.Atan2(fdy, fdx) * R2D;
+            float wantPitch = -MathF.Atan2(tgt.Z + tgt.EyeOff - me.Z, fd) * R2D;
+            if (MathF.Abs(NormYaw(wantYaw - me.Yaw)) > Config.SwingFaceToleranceDeg ||
+                MathF.Abs(wantPitch - me.Pitch) > Config.SwingFaceToleranceDeg)
+            {
+                yaw = wantYaw;
+                pitch = Math.Clamp(wantPitch, -89f, 89f);
+                bodyAngles = true;
+            }
         }
         if (bodyAngles) { _ang.X = pitch; _ang.Y = yaw; _ang.Z = 0f; }
         else { _ang.X = me.Pitch; _ang.Y = me.Yaw; _ang.Z = 0f; }   // 只为了让 Teleport 参数合法，值就是它当前视角
