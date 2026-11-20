@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.Json.Serialization;
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
@@ -85,14 +85,13 @@ public class LeftHandConfig : BasePluginConfig
     [JsonPropertyName("BaitPauseMin")] public float BaitPauseMin { get; set; } = 0.20f;         // 缩回掩体后停 0.2s 再整身大拉
     [JsonPropertyName("BaitPauseMax")] public float BaitPauseMax { get; set; } = 0.20f;
     [JsonPropertyName("SwingRampTime")] public float SwingRampTime { get; set; } = 0.18f;      // 大拉从 0 加速上去的时间
-    [JsonPropertyName("SwingSpeedScale")] public float SwingSpeedScale { get; set; } = 0.55f;
-    // 大拉的固定基准速度：解掉武器差异，让 狙/步枪/微冲 拉出来是同一个速度（240 × 0.55 ≈ 132/秒）
+    [JsonPropertyName("SwingSpeedScale")] public float SwingSpeedScale { get; set; } = 0.55f;    // v1.01：0.70 仍偏"瞬移"，0.55 ≈ 132/秒
+    // 大拉速度不再跟武器跑速挂钩：所有武器统一用这个基准速度 × SwingSpeedScale，
+    // 狙/步枪/微冲拉出来的速度和身位完全一样（AWP 跑速 200、M4 225，原样乘系数狙会明显慢一拍）。
     [JsonPropertyName("SwingBaseSpeed")] public float SwingBaseSpeed { get; set; } = 240f;
     [JsonPropertyName("SwingMinTime")] public float SwingMinTime { get; set; } = 0.16f;
     // 大拉一看到人就硬停：速度归零后还要等这么多秒才开火，等弹道扩散归零（第一枪才准）
     [JsonPropertyName("StopSettleTime")] public float StopSettleTime { get; set; } = 0.06f;
-    // 狙（AWP/鸟狙/自动狙）开火前要多停一会儿才准：急停稳枪时间额外加这么多
-    [JsonPropertyName("SniperSettleExtra")] public float SniperSettleExtra { get; set; } = 0.06f;
     // 拉枪后的冷却：默认 0 = 完全关闭，不再限制同一波对枪里能拉几次。
     // 想恢复限制就把值调成想要的秒数（例如 2）。
     [JsonPropertyName("PeekCooldown")] public float PeekCooldown { get; set; } = 0f;
@@ -126,10 +125,6 @@ public class LeftHandConfig : BasePluginConfig
     [JsonPropertyName("BlindPeek")] public bool BlindPeek { get; set; } = true;
     [JsonPropertyName("BlindPeekDelay")] public float BlindPeekDelay { get; set; } = 0.20f;
     [JsonPropertyName("BlindPeekMaxDistance")] public float BlindPeekMaxDistance { get; set; } = 450f;
-    // 墙后循环骗枪（v1.01）：一轮 peek 大拉打完了还是没看见人（说明我还在墙后、他还没露头），
-    // 不要傻站着等——那就是"看到我才开始动"。稍等一小下就重开一轮，保证玩家任何时刻探头都看见我在做 peek 动作。
-    [JsonPropertyName("PeekLoopWhenBlind")] public bool PeekLoopWhenBlind { get; set; } = true;
-    [JsonPropertyName("PeekLoopPause")] public float PeekLoopPause { get; set; } = 0.28f;
 
     // ===== 模式2：蹲拉 =====
     // 模式1/模式2 现在纯随机挑（每次拉枪重新掷一次），不再根据进攻方/敌人速度判定。
@@ -578,9 +573,6 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
             // 看不见时（墙后预瞄）它通常没有 enemy，这时才用我们的隔墙选人逻辑。
             tgt = OwnTarget(me, bot);
             if (tgt == null) tgt = PickTarget(me, bot);
-            // 墙后盲 peek：前两条都要求"在我的正面锥角里 / 马上就要照面"，玩家从侧后摸过来就不认。
-            // 这里补一条不看朝向的：只要在 BlindPeekMaxDistance 内就认，bot 反正知道他在哪。
-            if (tgt == null && Config.BlindPeek) tgt = PickTargetBlind(me);
             st.DbgTarget = tgt != null;
             if (tgt == null)
             {
@@ -637,9 +629,9 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
         switch (st.Phase)
         {
             case Phase.Track:
-                // v1.01：这里不再调 PlanPeek（它会因为"正在横向移动"提前把 PeekPlanned 置真，
-                // 于是后面统一的"先站定准备再探"就被跳过，观感就是"有时没准备、看见你才动"）。
-                // 现在只有下面这一处触发点，任何武器、任何可见性都走同一套拍子。
+                if (!visible && tgt != null) PlanPeek(me, tgt, st);
+                // 骗枪必须"双方都看得到"才有意义：在你自己视野外拉一下，你根本看不到，等于白做。
+                // 所以只在真的照面时拉：现在看得见，或刚刚（JustSeenWindow 内）还看得见。
                 bool contact = visible || (st.LastSeen > 0f && now - st.LastSeen <= Config.JustSeenWindow);
                 // ---- 墙后盲 peek（v1.01，玩家要求）----
                 // bot 隔墙就已经知道人在哪（PreaimMaxDistance 的隔墙选人 + 隔墙瞄头）。
@@ -753,9 +745,7 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
             case Phase.M1Swing: // 大拉：从 0 加速到满速，避免看起来像瞬移
                 {
                     float r = Math.Clamp(elapsed / MathF.Max(0.03f, Config.SwingRampTime), 0.2f, 1f);
-                    // v1.01：大拉速度用固定基准（默认 240），不再跟武器跑速挂钩 ——
-                    // 否则 AWP（200）比步枪（225）慢一截，狙的拉枪看起来就不是"步枪那样"了。
-                    float swingSpeed = Config.SwingBaseSpeed * Config.SwingSpeedScale;
+                    float swingSpeed = Config.SwingBaseSpeed * Config.SwingSpeedScale * Config.RunSpeedScale;
                     overrideVel = true; vx = st.PeekX * swingSpeed * r; vy = st.PeekY * swingSpeed * r;
                     float travelled = MathF.Sqrt((me.X - st.SwingX0) * (me.X - st.SwingX0) + (me.Y - st.SwingY0) * (me.Y - st.SwingY0));
 
@@ -767,19 +757,19 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
                     bool postShotDone = st.SwingSightAt > 0f && (now - st.SwingSightAt) >= st.SwingPostMove;
                     if (postShotDone && travelled >= Config.SwingFullTravel)
                     {
-                        st.PauseDur = SettleFor(me.Pawn);
+                        st.PauseDur = Config.StopSettleTime;
                         SetPhase(me, st, Phase.M1Stop, now);
                     }
                     else if (st.SwingSightAt > 0f && (now - st.SwingSightAt) >= st.SwingPostMove + 0.25f)
                     {
                         // 兜底：看见很久了还被墙/人卡住拉不动，别再傻站外面送枪
-                        st.PauseDur = SettleFor(me.Pawn);
+                        st.PauseDur = Config.StopSettleTime;
                         SetPhase(me, st, Phase.M1Stop, now);
                     }
                     else if (elapsed >= Config.SwingMaxTime)
                     {
                         if (Config.M1FireAfterSwing) EnterFireFromPeek(me, st, now);
-                        else { st.PauseDur = SettleFor(me.Pawn); SetPhase(me, st, Phase.M1Stop, now); }
+                        else { st.PauseDur = Config.StopSettleTime; SetPhase(me, st, Phase.M1Stop, now); }
                     }
                 }
                 break;
@@ -834,24 +824,6 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
                 if (st.Mode2 && now - st.FireStart > Config.CrouchHoldMax) st.Crouch = false;
                 if ((!visible && now - st.LastSeen > Config.LostSightTime) || now - st.FireStart > Config.FireHoldMax)
                 {
-                    // ---- 墙后循环骗枪 ----
-                    // 这一轮大拉全程都没看见人（SwingSightAt 还是 0，说明我是对着墙/空处做的动作），
-                    // 那就不是"打空"，而是"他还没露头"。这种情况别进冷却站着等，隔 PeekLoopPause 立刻再来一轮，
-                    // 这样玩家一探头看到的就是"我正在墙边 peek"，而不是"发现他→才开始动"。
-                    float dxl = tgt != null ? tgt.X - me.X : 0f;
-                    float dyl = tgt != null ? tgt.Y - me.Y : 0f;
-                    float dl = MathF.Sqrt(dxl * dxl + dyl * dyl);
-                    bool blindCycle = st.SwingSightAt <= 0f && !visible;
-                    if (Config.PeekLoopWhenBlind && blindCycle && tgt != null &&
-                        dl >= Config.PeekBaitMinDistance && dl <= Config.BlindPeekMaxDistance &&
-                        now - st.FireStart >= Config.PeekLoopPause)
-                    {
-                        st.PeekPlanned = false;                 // 允许再规划一次（触发点只认这个）
-                        st.PeekCooldownUntil = 0f;              // 循环里不受"一波只拉一次"限制
-                        st.EngageStart = now - Config.BlindPeekDelay; // 省掉重新接敌那 0.2s，直接进准备
-                        SetPhase(me, st, Phase.Track, now);
-                        break;
-                    }
                     EndEngage(me, st, bot, now); return;
                 }
                 break;
@@ -941,26 +913,6 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
     }
 
     // ================= 目标选择（隔墙范围限定） =================
-    /// <summary>
-    /// 墙后盲 peek 专用选人：完全不看朝向/锥角/速度，只要在 BlindPeekMaxDistance 内、活的、高度差不多就认。
-    /// 目的只有一个 —— bot 在墙后"知道人在哪"，能提前把 peek 做出来，而不是等人出现在视野里。
-    /// </summary>
-    private Snap? PickTargetBlind(Snap me)
-    {
-        Snap? best = null;
-        float bestScore = float.MaxValue;
-        foreach (var e in _alive)
-        {
-            if (e.Team == me.Team) continue;
-            if (MathF.Abs(e.Z - me.Z) > Config.PreaimMaxHeightDiff) continue;
-            float dx = e.X - me.X, dy = e.Y - me.Y;
-            float d = MathF.Sqrt(dx * dx + dy * dy);
-            if (d < 1f || d > Config.BlindPeekMaxDistance) continue;
-            if (d < bestScore) { bestScore = d; best = e; }
-        }
-        return best;
-    }
-
     private Snap? PickTarget(Snap me, IntPtr bot)
     {
         Snap? best = null;
@@ -1245,14 +1197,6 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
         var n = WeaponName(p);
         if (n.Contains("knife") || n.Contains("bayonet")) return 250f;
         return WeaponSpeeds.TryGetValue(n, out var s) ? s : 230f;
-    }
-
-    private float SettleFor(CCSPlayerPawn p)
-    {
-        // 狙开火前要多停一拍才准（AWP/鸟狙/自动狙）
-        var n = WeaponName(p);
-        bool sniper = n.Contains("awp") || n.Contains("ssg08") || n.Contains("scar20") || n.Contains("g3sg1");
-        return Config.StopSettleTime + (sniper ? Config.SniperSettleExtra : 0f);
     }
 
     private static bool WeaponAllowsStop(CCSPlayerPawn p)

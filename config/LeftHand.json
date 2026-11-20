@@ -89,8 +89,5 @@
   "SwingFullTravel": 55,
   "PeekSetupTime": 0.18,
   "SuppressVisibleDuringPeek": true,
-  "SwingBaseSpeed": 240,
-  "SniperSettleExtra": 0.06,
-  "PeekLoopWhenBlind": true,
-  "PeekLoopPause": 0.28
+  "SwingBaseSpeed": 240
 }
