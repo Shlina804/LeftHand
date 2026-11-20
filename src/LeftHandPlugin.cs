@@ -882,10 +882,13 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
             float hold = st.Mode2 ? Config.M2ForceLookTime : Config.FireForceLookTime;
             if (now - st.FireStart <= hold) forceLook = true;
         }
+        bool duelLook = Config.FaceEnemyInDuel &&
+                        (st.Phase == Phase.Fire || st.Phase == Phase.M1Swing || st.Phase == Phase.M1Stop);
+        if (duelLook) forceLook = true;
         // 瞄准完全交还 bot / BotAimImprover：这里不再做任何后坐力补偿
         // 蹲拉/大拉这段不光要"朝向对着人"，还要把瞄准部位压到人身上，否则它只是"头转过来、准星还朝外面"
-        bool aimSpot = forceLook && st.Phase != Phase.Fire && Config.M2AimAtEnemy &&
-                       (MathF.Abs(hx) + MathF.Abs(hy) + MathF.Abs(hz) > 0.01f);
+        bool aimSpot = Config.M2AimAtEnemy && (MathF.Abs(hx) + MathF.Abs(hy) + MathF.Abs(hz) > 0.01f) &&
+                       (duelLook || (forceLook && st.Phase != Phase.Fire));
         _headAimFlag = false;
         WriteBot(bot, pitch, yaw, hx, hy, hz, st.Crouch, doAim, forceLook, aimSpot);
         // 偷看那几拍不许开火：bot 自己的 AI 一有视线就会扣扳机，
@@ -917,18 +920,6 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
             float fdx = tgt!.X - me.X, fdy = tgt.Y - me.Y;
             yaw = MathF.Atan2(fdy, fdx) * R2D;
             pitch = Math.Clamp(-MathF.Atan2(tgt.Z + tgt.EyeOff - me.Z, MathF.Max(1f, MathF.Sqrt(fdx * fdx + fdy * fdy))) * R2D, -89f, 89f);
-            bodyAngles = true;
-        }
-        // 对枪时正面看我（v1.01 玩家要求）：开火/整身大拉/急停这几拍，每帧把身体朝向直接压到"我"身上，
-        // 不做任何侧身、不让它到处乱转。这里写的是恒定目标方向，所以不会有"毒液抽动"那种抖动。
-        bool duelFace = Config.FaceEnemyInDuel && hasTgt &&
-                        (st.Phase == Phase.Fire || st.Phase == Phase.M1Swing || st.Phase == Phase.M1Stop);
-        if (duelFace)
-        {
-            float fdx = tgt!.X - me.X, fdy = tgt.Y - me.Y;
-            float fd = MathF.Max(1f, MathF.Sqrt(fdx * fdx + fdy * fdy));
-            yaw = MathF.Atan2(fdy, fdx) * R2D;
-            pitch = Math.Clamp(-MathF.Atan2(tgt.Z + tgt.EyeOff - me.Z, fd) * R2D, -89f, 89f);
             bodyAngles = true;
         }
         if (bodyAngles) { _ang.X = pitch; _ang.Y = yaw; _ang.Z = 0f; }
