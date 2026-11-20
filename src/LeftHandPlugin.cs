@@ -630,9 +630,9 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
         switch (st.Phase)
         {
             case Phase.Track:
-                if (!visible && tgt != null) PlanPeek(me, tgt, st);
-                // 骗枪必须"双方都看得到"才有意义：在你自己视野外拉一下，你根本看不到，等于白做。
-                // 所以只在真的照面时拉：现在看得见，或刚刚（JustSeenWindow 内）还看得见。
+                // v1.01：这里不再调 PlanPeek（它会因为"正在横向移动"提前把 PeekPlanned 置真，
+                // 于是后面统一的"先站定准备再探"就被跳过，观感就是"有时没准备、看见你才动"）。
+                // 现在只有下面这一处触发点，任何武器、任何可见性都走同一套拍子。
                 bool contact = visible || (st.LastSeen > 0f && now - st.LastSeen <= Config.JustSeenWindow);
                 // ---- 墙后盲 peek（v1.01，玩家要求）----
                 // bot 隔墙就已经知道人在哪（PreaimMaxDistance 的隔墙选人 + 隔墙瞄头）。
