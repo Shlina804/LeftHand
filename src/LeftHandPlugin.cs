@@ -658,6 +658,9 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
         bool overrideVel = false;
         float vx = 0f, vy = 0f;
         float runSpeed = WeaponSpeed(me.Pawn) * Config.RunSpeedScale;
+        // 蹲着的速度上限：引擎里蹲姿本来就慢，这里所有"蹲着移动"的写入都必须按它来，
+        // 否则会出现"蹲着却按跑速滑"——玩家看到的就是"蹲着走路跟正常走路一样快"。
+        float crouchSpeed = runSpeed * Config.M2CrouchSpeedScale;
         float elapsed = now - st.PhaseStart;
 
         switch (st.Phase)
@@ -718,9 +721,10 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
                 if (!contact && st.PeekPlanned && st.Mode2 && me.OnGround)
                 {
                     float sp = me.Speed2D;
-                    if (sp > 1f && sp < runSpeed)
+                    float cap = st.Crouch ? crouchSpeed : runSpeed;   // 蹲着不许按跑速滑
+                    if (sp > 1f && sp < cap)
                     {
-                        overrideVel = true; vx = me.VX / sp * runSpeed; vy = me.VY / sp * runSpeed;
+                        overrideVel = true; vx = me.VX / sp * cap; vy = me.VY / sp * cap;
                     }
                 }
                 if (contact)
@@ -755,11 +759,12 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
                 }
                 else if (st.PeekPlanned && st.Mode2 && me.OnGround)
                 {
-                    // 模式2：沿寻路方向拉满地速
+                    // 模式2：沿寻路方向走，蹲着就按蹲速，不允许按跑速滑
                     float sp = me.Speed2D;
-                    if (sp > 1f && sp < runSpeed)
+                    float cap = st.Crouch ? crouchSpeed : runSpeed;
+                    if (sp > 1f && sp < cap)
                     {
-                        overrideVel = true; vx = me.VX / sp * runSpeed; vy = me.VY / sp * runSpeed;
+                        overrideVel = true; vx = me.VX / sp * cap; vy = me.VY / sp * cap;
                     }
                 }
                 break;
@@ -850,16 +855,22 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
             case Phase.M2Slide: // 模式2 蹲拉（回退到 21:51 那版的机制）：露头那一刻就蹲下，借惯性滑一步再打
                 st.Crouch = true;
                 overrideVel = true;
-                vx = me.VX * Config.CrouchSlideDecay;
-                vy = me.VY * Config.CrouchSlideDecay;
+                {
+                    // 惯性滑步也要受蹲速上限约束，否则蹲着能滑出跑速（"蹲着跑得跟走路一样快"）
+                    float sx = me.VX * Config.CrouchSlideDecay, sy = me.VY * Config.CrouchSlideDecay;
+                    float sl = MathF.Sqrt(sx * sx + sy * sy);
+                    float slideCap = crouchSpeed * 1.6f;
+                    if (sl > slideCap && sl > 1f) { sx = sx / sl * slideCap; sy = sy / sl * slideCap; }
+                    vx = sx; vy = sy;
+                }
                 if (elapsed >= Config.CrouchSlideTime) EnterFireFromPeek(me, st, now);
                 break;
 
             case Phase.M2Crouch: // 第二阶段：边蹲边滑 —— 对手看到"站→蹲"这个动作，同时还在往外出
                 {
                     overrideVel = true;
-                    vx = st.PeekX * runSpeed * Config.M2CrouchSpeedScale;
-                    vy = st.PeekY * runSpeed * Config.M2CrouchSpeedScale;
+                    vx = st.PeekX * crouchSpeed;
+                    vy = st.PeekY * crouchSpeed;
                     float m2travel = MathF.Sqrt((me.X - st.SwingX0) * (me.X - st.SwingX0) + (me.Y - st.SwingY0) * (me.Y - st.SwingY0));
                     // 必须"先拉出来再开火"：滑到时间且身位够了才允许急停开火
                     if (elapsed >= Config.M2CrouchTime && m2travel >= Config.M2MinTravel)
@@ -1194,7 +1205,8 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
                 ts.X = hx; ts.Y = hy; ts.Z = hz;
                 _headAimFlag = true;
             }
-            Schema.GetRef<bool>(bot, "CBot", "m_isCrouching") = crouch;
+            // 只在"要蹲"的时候写 true；false 交给 bot 自己的 AI（每帧强写 false 会和 AI 抢，模型会抖）
+            if (crouch) Schema.GetRef<bool>(bot, "CBot", "m_isCrouching") = true;
         }
         catch { BotFieldsFailed(); }
     }

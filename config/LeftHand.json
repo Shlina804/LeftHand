@@ -77,7 +77,7 @@
   "M2CrouchTime": 0.06,
   "M2MinTravel": 0,
   "M2MaxExtraTime": 0.0,
-  "M2CrouchSpeedScale": 0.22,
+  "M2CrouchSpeedScale": 0.34,
   "CrouchSlideDecay": 0.70,
   "CrouchHoldMax": 2.5,
 
