@@ -125,6 +125,9 @@ public class LeftHandConfig : BasePluginConfig
     [JsonPropertyName("BlindPeek")] public bool BlindPeek { get; set; } = true;
     [JsonPropertyName("BlindPeekDelay")] public float BlindPeekDelay { get; set; } = 0.20f;
     [JsonPropertyName("BlindPeekMaxDistance")] public float BlindPeekMaxDistance { get; set; } = 450f;
+    // true = 目标已锁定但还没开始做 peek 时，bot 在墙后原地不动（不往前蹭、不露身位），
+    // 只把准星对到对手头上；所有动作都从 M1Setup 才开始。这就是"一点不漏、对好头再出来"。
+    [JsonPropertyName("HoldPositionWhileHidden")] public bool HoldPositionWhileHidden { get; set; } = true;
 
     // ===== 模式2：蹲拉 =====
     // 模式1/模式2 现在纯随机挑（每次拉枪重新掷一次），不再根据进攻方/敌人速度判定。
@@ -632,6 +635,20 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
                 // v1.01：这里不能调 PlanPeek —— 它会在 bot 横移时提前把 PeekPlanned 置真，
                 // 于是下面"先站定准备再探"的唯一触发点被跳过，表现就是"有时候压根没准备、看见我才动"。
                 bool contact = visible || (st.LastSeen > 0f && now - st.LastSeen <= Config.JustSeenWindow);
+                // ---- 准备之前"一点不漏"（v1.01 玩家要求）----
+                // 旧版 Track 这段 bot 仍按自己的寻路全速往玩家的方向走，所以玩家先看到它整个人露出来，
+                // 然后才看到它做 peek —— 观感是"被我发现了才开始动"。
+                // 这里：只要目标已锁定、距离在盲 peek 范围内、这波还没开始动作，就把水平速度直接写成 0，
+                // 让它在墙后原地对头（PreaimLookAtSpot），一点身位都不露，动只从 M1Setup 开始。
+                if (Config.HoldPositionWhileHidden && !st.PeekPlanned && !visible && tgt != null && me.OnGround)
+                {
+                    float dxh = tgt.X - me.X, dyh = tgt.Y - me.Y;
+                    float dh = MathF.Sqrt(dxh * dxh + dyh * dyh);
+                    if (dh <= Config.BlindPeekMaxDistance)
+                    {
+                        overrideVel = true; vx = 0f; vy = 0f;
+                    }
+                }
                 // ---- 墙后盲 peek（v1.01，玩家要求）----
                 // bot 隔墙就已经知道人在哪（PreaimMaxDistance 的隔墙选人 + 隔墙瞄头）。
                 // 关键：**不要求"玩家看得见我"**，也不要求 bot 自己有视线 —— 只要距离合适就先站定准备再探，

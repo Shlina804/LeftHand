@@ -89,5 +89,9 @@
   "SwingFullTravel": 55,
   "PeekSetupTime": 0.18,
   "SuppressVisibleDuringPeek": true,
-  "SwingBaseSpeed": 240
+  "SwingBaseSpeed": 240,
+  "HoldPositionWhileHidden": true,
+  "BlindPeek": true,
+  "BlindPeekDelay": 0.20,
+  "BlindPeekMaxDistance": 800
 }
