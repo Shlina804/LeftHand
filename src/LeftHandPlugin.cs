@@ -40,6 +40,9 @@ public class LeftHandConfig : BasePluginConfig
     //   WriteLookYaw      = 写 m_lookYaw / m_lookPitch（会顶掉 BotAimImprover 的瞄准）—— 默认关
     //   WriteBodyAngles   = 用 Teleport 拧 pawn 朝向（会侧身对人 + 顶掉瞄准）—— 默认关
     [JsonPropertyName("PreaimLookAtSpot")] public bool PreaimLookAtSpot { get; set; } = true;
+    // 隔墙时把"瞄准部位"(m_targetSpot) 也压到对手头上：这是玩家肉眼看到的那条枪口/准星线。
+    // m_lookAtSpot 只管 bot 下一步想瞄哪，不改它当前枪口，所以只写那个的话看起来像"没锁我"。
+    [JsonPropertyName("PreaimTargetSpotWhenHidden")] public bool PreaimTargetSpotWhenHidden { get; set; } = true;
     [JsonPropertyName("WriteLookYaw")] public bool WriteLookYaw { get; set; } = false;
     [JsonPropertyName("WriteBodyAngles")] public bool WriteBodyAngles { get; set; } = false;
 
@@ -1113,6 +1116,14 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
                     _writeCount++;
                     var spot = Schema.GetDeclaredClass<Vector>(bot, "CCSBot", "m_lookAtSpot");
                     spot.X = hx; spot.Y = hy; spot.Z = hz;
+                }
+                // 隔墙锁头（看得见的那条线）：把"瞄准部位"也压到对手头上，
+                // 否则 bot 的枪口/视线仍是它自己 AI 指的地方，看上去就是"没锁我了"。
+                if (Config.PreaimTargetSpotWhenHidden)
+                {
+                    var ts = Schema.GetDeclaredClass<Vector>(bot, "CCSBot", "m_targetSpot");
+                    ts.X = hx; ts.Y = hy; ts.Z = hz;
+                    _headAimFlag = true;
                 }
                 if (Config.WriteLookYaw)
                 {
