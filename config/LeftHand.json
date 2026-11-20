@@ -57,7 +57,7 @@
 
   "FireForceLook": true,
   "FireForceLookTime": 0.15,
-  "SwingMaxTime": 0.85,
+  "SwingMaxTime": 1.0,
   // 大拉至少要拉出这么远才允许急停开枪（60 ≈ 一个身位）
   "SwingMinTravel": 45,
   "M1FireAfterSwing": true,
@@ -82,6 +82,9 @@
   "CrouchHoldMax": 2.5,
 
   "ConfigVersion": 1,
-  "SuppressAimDuringPeek": false,
-  "ForceFaceDuringPeek": false
+  "SuppressAimDuringPeek": true,
+  "ForceFaceDuringPeek": false,
+  "SwingPostMoveMin": 0.30,
+  "SwingPostMoveMax": 0.30,
+  "SwingFullTravel": 55
 }

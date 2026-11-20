@@ -100,9 +100,14 @@ public class LeftHandConfig : BasePluginConfig
     [JsonPropertyName("FireForceLook")] public bool FireForceLook { get; set; } = false;
     [JsonPropertyName("FireForceLookTime")] public float FireForceLookTime { get; set; } = 0.15f;
     [JsonPropertyName("M2ForceLookTime")] public float M2ForceLookTime { get; set; } = 0.15f;
-    [JsonPropertyName("SwingMaxTime")] public float SwingMaxTime { get; set; } = 0.85f;
+    [JsonPropertyName("SwingMaxTime")] public float SwingMaxTime { get; set; } = 1.00f;
     // 大拉至少要拉出这么远才允许急停开枪：否则"刚露个头就停"，玩家看到的是 peek 了一下又缩回去
     [JsonPropertyName("SwingMinTravel")] public float SwingMinTravel { get; set; } = 45f;   // 大拉至少要拉出这么多（≈一个身位）才算拉到位
+    // v1.01 新动作（玩家指定）：大拉途中一看见对手，先不停、边跑边开枪；
+    // 然后继续往外拉 SwingPostMoveMin~Max 秒、整身位拉到 SwingFullTravel，才急停，第二枪打头。
+    [JsonPropertyName("SwingPostMoveMin")] public float SwingPostMoveMin { get; set; } = 0.20f;
+    [JsonPropertyName("SwingPostMoveMax")] public float SwingPostMoveMax { get; set; } = 0.30f;
+    [JsonPropertyName("SwingFullTravel")] public float SwingFullTravel { get; set; } = 55f;  // 2/3 身位（34 单位是半身，55 ≈ 2/3）
     // false = 模式1 只骗枪不开枪：整套动作走完就把开火权交回 bot 自己的 AI（打头/压枪交给 BotAimImprover）
     [JsonPropertyName("M1FireAfterSwing")] public bool M1FireAfterSwing { get; set; } = true;
     [JsonPropertyName("BaitOnlyIfEnemyAiming")] public bool BaitOnlyIfEnemyAiming { get; set; } = false;
@@ -120,10 +125,10 @@ public class LeftHandConfig : BasePluginConfig
     // 蹲下的过程被对手看到，同时继续带一点横向位移 —— 这就是"蹲拉"，不是一出来就蹲。
     // 蹲下要先原地顿一下：带速写蹲姿会被引擎取消，人就站着跑出来
     [JsonPropertyName("M2CrouchSettleTime")] public float M2CrouchSettleTime { get; set; } = 0.12f;
-    // 偷看那几拍不许开火：按住 bot 的"正在瞄准敌人"，骗枪才是纯骗枪
-    // v1.01 回退：这两项会导致 bot 模型抽动（每帧强行写 bodyAngles）且整段不开枪，
-    // 实测玩家看到的是"bot 畸形、乱窜、不还手"，因此默认关闭。
-    [JsonPropertyName("SuppressAimDuringPeek")] public bool SuppressAimDuringPeek { get; set; } = false;
+    // 偷看那几拍不许开火：按住 bot 的"正在瞄准敌人"，骗枪才是纯骗枪。
+    // v1.01：只回退 ForceFaceDuringPeek（写 bodyAngles 会让模型抽动），这一项保留，
+    // 否则 bot 一露头就自己扣扳机，玩家根本看不到 peek。
+    [JsonPropertyName("SuppressAimDuringPeek")] public bool SuppressAimDuringPeek { get; set; } = true;
     // 偷看/蹲拉时身体正对敌人（否则侧步会让人侧着身子看你）
     [JsonPropertyName("ForceFaceDuringPeek")] public bool ForceFaceDuringPeek { get; set; } = false;
     [JsonPropertyName("M2StandOutTime")] public float M2StandOutTime { get; set; } = 0.14f;   // 站姿段：先把身位拉出来
@@ -159,6 +164,8 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
         public float PeekX, PeekY, CurYaw, CurPitch, JitYaw, JitPitch, NextJitter;
         public float PeekCooldownUntil;   // 这一波打过拉枪后，要等这么久才允许下一次
         public float SwingX0, SwingY0;    // 大拉起点（用来保证"拉满一个身位"才停）
+        public float SwingSightAt;        // 大拉途中"真正看见对手"的时刻（0 = 还没看见）
+        public float SwingPostMove;       // 看见后还要继续往外拉多久（0.2~0.3s）才急停
         public bool DbgBotNull, DbgTarget, DbgVisible, DbgSees, DbgHeadAim;
         public float DbgSpeed;   // 这一帧实际水平速度（验证速度写入到底有没有生效）
 
@@ -166,6 +173,7 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
         {
             Phase = Phase.None; TargetSlot = -1; HasAim = false; PeekPlanned = false;
             ModeDecided = false; Mode2 = false; Crouch = false;
+            SwingSightAt = 0f; SwingPostMove = 0.25f;
         }
     }
 
@@ -706,9 +714,21 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
                     float swingSpeed = runSpeed * Config.SwingSpeedScale;
                     overrideVel = true; vx = st.PeekX * swingSpeed * r; vy = st.PeekY * swingSpeed * r;
                     float travelled = MathF.Sqrt((me.X - st.SwingX0) * (me.X - st.SwingX0) + (me.Y - st.SwingY0) * (me.Y - st.SwingY0));
-                    if (visible && travelled >= Config.SwingMinTravel)
+
+                    // ---- v1.01 玩家要的"大拉" ----
+                    // 1) 拉出去一看见对手（有视线）就记录这一刻，此时不停、继续跑，AI 边跑边开第一枪
+                    if (visible && st.SwingSightAt <= 0f) st.SwingSightAt = now;
+                    // 2) 看见之后再往外拉 SwingPostMove 秒（0.2~0.3s），并把身位拉到 2/3 个
+                    // 3) 两个条件都满足才急停，停稳 0.06s 后再开火（这一枪才是"急停爆头"）
+                    bool postShotDone = st.SwingSightAt > 0f && (now - st.SwingSightAt) >= st.SwingPostMove;
+                    if (postShotDone && travelled >= Config.SwingFullTravel)
                     {
-                        // 拉满一个身位才停：一出头就钉住会变成"peek 一下就缩回去"
+                        st.PauseDur = Config.StopSettleTime;
+                        SetPhase(me, st, Phase.M1Stop, now);
+                    }
+                    else if (st.SwingSightAt > 0f && (now - st.SwingSightAt) >= st.SwingPostMove + 0.25f)
+                    {
+                        // 兜底：看见很久了还被墙/人卡住拉不动，别再傻站外面送枪
                         st.PauseDur = Config.StopSettleTime;
                         SetPhase(me, st, Phase.M1Stop, now);
                     }
@@ -1097,7 +1117,12 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
     {
         Phase from = st.Phase;
         st.Phase = p; st.PhaseStart = now;
-        if (p == Phase.M1Swing || p == Phase.M2Slide) { st.SwingX0 = me.X; st.SwingY0 = me.Y; }   // 记下拉枪起点
+        if (p == Phase.M1Swing || p == Phase.M2Slide)
+        {
+            st.SwingX0 = me.X; st.SwingY0 = me.Y;   // 记下拉枪起点
+            st.SwingSightAt = 0f;                    // 每次大拉重新等"看见对手"那一刻
+            st.SwingPostMove = Lerp(Config.SwingPostMoveMin, Config.SwingPostMoveMax, (float)_rng.NextDouble());
+        }
         if (_chatOn && p != Phase.Track) { try { Server.PrintToChatAll($" \x01[左手] {me.Ctrl.PlayerName}: {p}"); } catch { } }
         // 相位流水：每次切换落一行，事后能一眼看出序列断在哪一拍
         try
