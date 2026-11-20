@@ -95,5 +95,6 @@
   "BlindPeekDelay": 0.20,
   "BlindPeekMaxDistance": 800,
   "FightWhenBotSees": true,
-  "PreaimTargetSpotWhenHidden": true
+  "PreaimTargetSpotWhenHidden": true,
+  "NoCoverPeekChance": 0.6
 }

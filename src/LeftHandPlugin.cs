@@ -134,6 +134,8 @@ public class LeftHandConfig : BasePluginConfig
     // true = bot 自己有真实视线（说明身边没掩体、藏不住）时，直接进入对枪，不再套"准备→peek"那套。
     // 那一套在偷看相位会把开火权按住，没掩体时就会表现成"站着不开枪"。
     [JsonPropertyName("FightWhenBotSees")] public bool FightWhenBotSees { get; set; } = true;
+    // 有视线（没掩体）时仍然做一次 peek 假动作的概率：0 = 永远不 peek 直接打，1 = 每波都先骗一枪。
+    [JsonPropertyName("NoCoverPeekChance")] public float NoCoverPeekChance { get; set; } = 0.6f;
 
     // ===== 模式2：蹲拉 =====
     // 模式1/模式2 现在纯随机挑（每次拉枪重新掷一次），不再根据进攻方/敌人速度判定。
@@ -647,8 +649,13 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
                 // 交给它自己的 AI 打：原地急停、准星在头上、正常扣扳机。
                 if (Config.FightWhenBotSees && botSees && !st.PeekPlanned && st.Phase == Phase.Track)
                 {
-                    EnterFire(me, st, now);
-                    break;
+                    // 但"peek 概率太小"又是另一回事：哪怕有视线，也按 NoCoverPeekChance 掷一次，
+                    // 中了就照样先做一遍 shoulder peek（骗一枪）再打，不中才直接对枪。
+                    if (_rng.NextDouble() >= Config.NoCoverPeekChance)
+                    {
+                        EnterFire(me, st, now);
+                        break;
+                    }
                 }
                 // 旧版 Track 这段 bot 仍按自己的寻路全速往玩家的方向走，所以玩家先看到它整个人露出来，
                 // 然后才看到它做 peek —— 观感是"被我发现了才开始动"。
