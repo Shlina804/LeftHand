@@ -93,5 +93,6 @@
   "HoldPositionWhileHidden": true,
   "BlindPeek": true,
   "BlindPeekDelay": 0.20,
-  "BlindPeekMaxDistance": 800
+  "BlindPeekMaxDistance": 800,
+  "FightWhenBotSees": true
 }
