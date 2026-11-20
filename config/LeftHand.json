@@ -40,15 +40,15 @@
   "JustSeenWindow": 0.3,
   "LostSightTime": 0.7,
   "FireHoldMax": 2,
-  "ReengageCooldown": 0.6,
+  "ReengageCooldown": 0.15,
 
   "ShoulderSpeed": 140,
   "ShoulderOutTime": 0.17,
-  "ConfirmHoldMin": 0.10,
-  "ConfirmHoldMax": 0.10,
+  "ConfirmHoldMin": 0.08,
+  "ConfirmHoldMax": 0.08,
   "ShoulderBackTime": 0.26,
-  "BaitPauseMin": 0.12,
-  "BaitPauseMax": 0.35,
+  "BaitPauseMin": 0.08,
+  "BaitPauseMax": 0.15,
   "SwingRampTime": 0.18,
   "SwingSpeedScale": 0.78,
   "SwingMinTime": 0.16,
@@ -57,7 +57,7 @@
 
   "FireForceLook": true,
   "FireForceLookTime": 0.15,
-  "SwingMaxTime": 1.6,
+  "SwingMaxTime": 0.95,
   // 大拉至少要拉出这么远才允许急停开枪（60 ≈ 一个身位）
   "SwingMinTravel": 90,
   "M1FireAfterSwing": true,
@@ -87,12 +87,12 @@
   "SwingPostMoveMin": 0.15,
   "SwingPostMoveMax": 0.15,
   "SwingFullTravel": 120,
-  "PeekSetupTime": 0.18,
+  "PeekSetupTime": 0.14,
   "SuppressVisibleDuringPeek": true,
   "SwingBaseSpeed": 240,
   "HoldPositionWhileHidden": true,
   "BlindPeek": true,
-  "BlindPeekDelay": 0.20,
+  "BlindPeekDelay": 0.08,
   "BlindPeekMaxDistance": 800,
   "FightWhenBotSees": true,
   "PreaimTargetSpotWhenHidden": true,
@@ -100,5 +100,6 @@
   "Mode2OnlyWhenHidden": true,
   "FaceEnemyInDuel": true,
   "FaceEnemyDuringSwing": true,
-  "SwingFaceToleranceDeg": 18
+  "SwingFaceToleranceDeg": 18,
+  "TargetGraceTime": 0.4
 }

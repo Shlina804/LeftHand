@@ -75,6 +75,9 @@ public class LeftHandConfig : BasePluginConfig
     [JsonPropertyName("LostSightTime")] public float LostSightTime { get; set; } = 0.7f;
     [JsonPropertyName("FireHoldMax")] public float FireHoldMax { get; set; } = 2.0f;
     [JsonPropertyName("ReengageCooldown")] public float ReengageCooldown { get; set; } = 0.6f;
+    // 选人抖动宽限（秒）：这一帧挑不到目标但上一帧还在，别立刻把这一波掐掉重新开始。
+    // 否则相位会在 None/Track 之间来回刷，peek 永远开不了头。
+    [JsonPropertyName("TargetGraceTime")] public float TargetGraceTime { get; set; } = 0.4f;
 
     // ===== 模式1：peek接大拉 =====
     // 一次完整的 peek 流程：探出约1/3 → 停住确认对手位置/爆头线 → 收回 → 墙后调整 → 整身大拉开打
@@ -190,6 +193,8 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
         public int TargetSlot = -1;
         public float PhaseStart, EngageStart, LastSeen, PauseDur, CooldownUntil, FireStart;
         public bool HasAim, PeekPlanned, ModeDecided, Mode2, Crouch;
+        public bool FacedSwing;   // 这一轮大拉是否已经"转身看着对手"（只写一次；每帧写会让模型畸形）
+        public float LastTgtAt;   // 上一次成功挑到目标的时刻（防"挑人抖动"导致相位刷屏）
         public float PeekX, PeekY, CurYaw, CurPitch, JitYaw, JitPitch, NextJitter;
         public float PeekCooldownUntil;   // 这一波打过拉枪后，要等这么久才允许下一次
         public float SwingX0, SwingY0;    // 大拉起点（用来保证"拉满一个身位"才停）
@@ -202,8 +207,7 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
         {
             Phase = Phase.None; TargetSlot = -1; HasAim = false; PeekPlanned = false;
             ModeDecided = false; Mode2 = false; Crouch = false;
-            SwingSightAt = 0f; SwingPostMove = 0.25f;
-        }
+            SwingSightAt = 0f; SwingPostMove = 0.25f; FacedSwing = false;        }
     }
 
     private sealed class Snap
@@ -595,10 +599,21 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
             st.DbgTarget = tgt != null;
             if (tgt == null)
             {
+                // 选人逻辑会随朝向/视线抖一下（这一帧挑不到、下一帧又能挑到），
+                // 直接打回 None 会让相位在 None/Track 之间刷屏、peek 永远开不了头。
+                // 给 0.4 秒宽限：短暂丢目标就原地保持，不重开一波。
+                if (Config.TargetGraceTime > 0f && st.TargetSlot >= 0 &&
+                    st.LastTgtAt > 0f && now - st.LastTgtAt <= Config.TargetGraceTime)
+                {
+                    GenericCounterStrafe(me, bot);
+                    return;
+                }
                 st.Phase = Phase.None; st.HasAim = false; st.ModeDecided = false;
+                st.TargetSlot = -1; st.LastTgtAt = 0f;
                 GenericCounterStrafe(me, bot);
                 return;
             }
+            st.LastTgtAt = now;
             if (st.TargetSlot != tgt.Slot)
             {
                 st.TargetSlot = tgt.Slot; st.HasAim = false; st.ModeDecided = false;
@@ -927,21 +942,16 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
         }
         // 整身大拉那几拍"看着我拉出来"（v1.01 玩家要求）：只在偏差超过容差时掰一次，
         // 所以是一直正面对着人拉，但不会每帧和 AI 抢写（抢写就是"一抽一抽"）。
-        bool swingFace = Config.FaceEnemyDuringSwing && hasTgt && !peekFace &&
+        bool swingFace = Config.FaceEnemyDuringSwing && hasTgt && !peekFace && !st.FacedSwing &&
                          (st.Phase == Phase.M1Swing || st.Phase == Phase.M1Stop);
         if (swingFace)
         {
+            st.FacedSwing = true;
             float fdx = tgt!.X - me.X, fdy = tgt.Y - me.Y;
             float fd = MathF.Max(1f, MathF.Sqrt(fdx * fdx + fdy * fdy));
-            float wantYaw = MathF.Atan2(fdy, fdx) * R2D;
-            float wantPitch = -MathF.Atan2(tgt.Z + tgt.EyeOff - me.Z, fd) * R2D;
-            if (MathF.Abs(NormYaw(wantYaw - me.Yaw)) > Config.SwingFaceToleranceDeg ||
-                MathF.Abs(wantPitch - me.Pitch) > Config.SwingFaceToleranceDeg)
-            {
-                yaw = wantYaw;
-                pitch = Math.Clamp(wantPitch, -89f, 89f);
-                bodyAngles = true;
-            }
+            yaw = MathF.Atan2(fdy, fdx) * R2D;
+            pitch = Math.Clamp(-MathF.Atan2(tgt.Z + tgt.EyeOff - me.Z, fd) * R2D, -89f, 89f);
+            bodyAngles = true;
         }
         if (bodyAngles) { _ang.X = pitch; _ang.Y = yaw; _ang.Z = 0f; }
         else { _ang.X = me.Pitch; _ang.Y = me.Yaw; _ang.Z = 0f; }   // 只为了让 Teleport 参数合法，值就是它当前视角
@@ -1238,6 +1248,7 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
         {
             st.SwingX0 = me.X; st.SwingY0 = me.Y;   // 记下拉枪起点
             st.SwingSightAt = 0f;                    // 每次大拉重新等"看见对手"那一刻
+            st.FacedSwing = false;                   // 新一轮大拉，允许再转一次身（整轮只转一次）
             st.SwingPostMove = Lerp(Config.SwingPostMoveMin, Config.SwingPostMoveMax, (float)_rng.NextDouble());
         }
         if (_chatOn && p != Phase.Track) { try { Server.PrintToChatAll($" \x01[左手] {me.Ctrl.PlayerName}: {p}"); } catch { } }
