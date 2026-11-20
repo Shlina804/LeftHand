@@ -42,24 +42,24 @@
   "FireHoldMax": 2,
   "ReengageCooldown": 0.6,
 
-  "ShoulderSpeed": 150,
-  "ShoulderOutTime": 0.21,
+  "ShoulderSpeed": 115,
+  "ShoulderOutTime": 0.3,
   "ConfirmHoldMin": 0.1,
   "ConfirmHoldMax": 0.1,
-  "ShoulderBackTime": 0.25,
+  "ShoulderBackTime": 0.34,
   "BaitPauseMin": 0.12,
   "BaitPauseMax": 0.35,
-  "SwingRampTime": 0.1,
-  "SwingSpeedScale": 0.7,
+  "SwingRampTime": 0.18,
+  "SwingSpeedScale": 0.55,
   "SwingMinTime": 0.16,
   "StopSettleTime": 0.06,
   "PeekCooldown": 0.0,
 
   "FireForceLook": true,
   "FireForceLookTime": 0.15,
-  "SwingMaxTime": 0.6,
+  "SwingMaxTime": 0.85,
   // 大拉至少要拉出这么远才允许急停开枪（60 ≈ 一个身位）
-  "SwingMinTravel": 20,
+  "SwingMinTravel": 45,
   "M1FireAfterSwing": true,
   "BaitOnlyIfEnemyAiming": false,
   "EnemyAimConeDeg": 20,
@@ -81,5 +81,7 @@
   "CrouchSlideDecay": 0.82,
   "CrouchHoldMax": 2.5,
 
-  "ConfigVersion": 1
+  "ConfigVersion": 1,
+  "SuppressAimDuringPeek": false,
+  "ForceFaceDuringPeek": false
 }

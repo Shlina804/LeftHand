@@ -75,15 +75,15 @@ public class LeftHandConfig : BasePluginConfig
 
     // ===== 模式1：peek接大拉 =====
     // 一次完整的 peek 流程：探出约1/3 → 停住确认对手位置/爆头线 → 收回 → 墙后调整 → 整身大拉开打
-    [JsonPropertyName("ShoulderSpeed")] public float ShoulderSpeed { get; set; } = 150f;      // 探身速度：205 像瞬移，150 更像真人侧步
-    [JsonPropertyName("ShoulderOutTime")] public float ShoulderOutTime { get; set; } = 0.24f;  // 探出用时：150×0.24 ≈ 36 单位 ≈ 半个身位
+    [JsonPropertyName("ShoulderSpeed")] public float ShoulderSpeed { get; set; } = 115f;      // v1.01：150 仍偏快，115 ≈ 真人侧步
+    [JsonPropertyName("ShoulderOutTime")] public float ShoulderOutTime { get; set; } = 0.30f;  // 115×0.30 ≈ 34 单位 ≈ 半个身位
     [JsonPropertyName("ConfirmHoldMin")] public float ConfirmHoldMin { get; set; } = 0.10f;    // 探出后停留 0.1s（让对手看见你露头）
     [JsonPropertyName("ConfirmHoldMax")] public float ConfirmHoldMax { get; set; } = 0.10f;
-    [JsonPropertyName("ShoulderBackTime")] public float ShoulderBackTime { get; set; } = 0.40f; // 缩回速度保持原值，调快会像瞬移
+    [JsonPropertyName("ShoulderBackTime")] public float ShoulderBackTime { get; set; } = 0.34f; // 115×0.34 ≈ 39，比探出多走一点，确保真退回掩体
     [JsonPropertyName("BaitPauseMin")] public float BaitPauseMin { get; set; } = 0.20f;         // 缩回掩体后停 0.2s 再整身大拉
     [JsonPropertyName("BaitPauseMax")] public float BaitPauseMax { get; set; } = 0.20f;
-    [JsonPropertyName("SwingRampTime")] public float SwingRampTime { get; set; } = 0.26f;      // 大拉从 0 加速上去的时间
-    [JsonPropertyName("SwingSpeedScale")] public float SwingSpeedScale { get; set; } = 0.85f;    // 大拉用跑速的几成（1.0 满跑速，观感像瞬移）
+    [JsonPropertyName("SwingRampTime")] public float SwingRampTime { get; set; } = 0.18f;      // 大拉从 0 加速上去的时间
+    [JsonPropertyName("SwingSpeedScale")] public float SwingSpeedScale { get; set; } = 0.55f;    // v1.01：0.70 仍偏"瞬移"，0.55 ≈ 132/秒
     [JsonPropertyName("SwingMinTime")] public float SwingMinTime { get; set; } = 0.16f;
     // 大拉一看到人就硬停：速度归零后还要等这么多秒才开火，等弹道扩散归零（第一枪才准）
     [JsonPropertyName("StopSettleTime")] public float StopSettleTime { get; set; } = 0.06f;
@@ -100,11 +100,11 @@ public class LeftHandConfig : BasePluginConfig
     [JsonPropertyName("FireForceLook")] public bool FireForceLook { get; set; } = false;
     [JsonPropertyName("FireForceLookTime")] public float FireForceLookTime { get; set; } = 0.15f;
     [JsonPropertyName("M2ForceLookTime")] public float M2ForceLookTime { get; set; } = 0.15f;
-    [JsonPropertyName("SwingMaxTime")] public float SwingMaxTime { get; set; } = 0.60f;
+    [JsonPropertyName("SwingMaxTime")] public float SwingMaxTime { get; set; } = 0.85f;
     // 大拉至少要拉出这么远才允许急停开枪：否则"刚露个头就停"，玩家看到的是 peek 了一下又缩回去
-    [JsonPropertyName("SwingMinTravel")] public float SwingMinTravel { get; set; } = 60f;   // 大拉至少要拉出这么多（≈一个身位）才算拉到位
+    [JsonPropertyName("SwingMinTravel")] public float SwingMinTravel { get; set; } = 45f;   // 大拉至少要拉出这么多（≈一个身位）才算拉到位
     // false = 模式1 只骗枪不开枪：整套动作走完就把开火权交回 bot 自己的 AI（打头/压枪交给 BotAimImprover）
-    [JsonPropertyName("M1FireAfterSwing")] public bool M1FireAfterSwing { get; set; } = false;
+    [JsonPropertyName("M1FireAfterSwing")] public bool M1FireAfterSwing { get; set; } = true;
     [JsonPropertyName("BaitOnlyIfEnemyAiming")] public bool BaitOnlyIfEnemyAiming { get; set; } = false;
     [JsonPropertyName("EnemyAimConeDeg")] public float EnemyAimConeDeg { get; set; } = 20f;
     // true = 第一次照面（已经看得见）且距离够远时，也先做一次 shoulder/大拉或蹲拉再开火，
@@ -121,9 +121,11 @@ public class LeftHandConfig : BasePluginConfig
     // 蹲下要先原地顿一下：带速写蹲姿会被引擎取消，人就站着跑出来
     [JsonPropertyName("M2CrouchSettleTime")] public float M2CrouchSettleTime { get; set; } = 0.12f;
     // 偷看那几拍不许开火：按住 bot 的"正在瞄准敌人"，骗枪才是纯骗枪
-    [JsonPropertyName("SuppressAimDuringPeek")] public bool SuppressAimDuringPeek { get; set; } = true;
+    // v1.01 回退：这两项会导致 bot 模型抽动（每帧强行写 bodyAngles）且整段不开枪，
+    // 实测玩家看到的是"bot 畸形、乱窜、不还手"，因此默认关闭。
+    [JsonPropertyName("SuppressAimDuringPeek")] public bool SuppressAimDuringPeek { get; set; } = false;
     // 偷看/蹲拉时身体正对敌人（否则侧步会让人侧着身子看你）
-    [JsonPropertyName("ForceFaceDuringPeek")] public bool ForceFaceDuringPeek { get; set; } = true;
+    [JsonPropertyName("ForceFaceDuringPeek")] public bool ForceFaceDuringPeek { get; set; } = false;
     [JsonPropertyName("M2StandOutTime")] public float M2StandOutTime { get; set; } = 0.14f;   // 站姿段：先把身位拉出来
     [JsonPropertyName("M2CrouchTime")] public float M2CrouchTime { get; set; } = 0.22f;        // 蹲滑段：边蹲边继续拉，拉完才开火
     // 蹲拉必须先拉出身位再开火：位移不到这么多就不许开枪（45 ≈ 大半个身位）
@@ -137,7 +139,7 @@ public class LeftHandConfig : BasePluginConfig
 public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
 {
     public override string ModuleName => "LeftHand 左手插件";
-    public override string ModuleVersion => "0.1.0";
+    public override string ModuleVersion => "1.0.1";
     public override string ModuleAuthor => "LeftHand";
     public override string ModuleDescription => "Bot 隔墙预瞄 / peek接大拉 / 蹲拉 / 急停";
 
