@@ -863,7 +863,12 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
                     if (sl > slideCap && sl > 1f) { sx = sx / sl * slideCap; sy = sy / sl * slideCap; }
                     vx = sx; vy = sy;
                 }
-                if (elapsed >= Config.CrouchSlideTime) EnterFireFromPeek(me, st, now);
+                if (elapsed >= Config.CrouchSlideTime)
+                {
+                    // 蹲拉要"蹲着往外走一段"才算完成，不能刚蹲下就开枪（那样看着像原地抖一下）
+                    st.SwingX0 = me.X; st.SwingY0 = me.Y;
+                    SetPhase(me, st, Phase.M2Crouch, now);
+                }
                 break;
 
             case Phase.M2Crouch: // 第二阶段：边蹲边滑 —— 对手看到"站→蹲"这个动作，同时还在往外出
@@ -919,6 +924,7 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
         bool aimSpot = Config.M2AimAtEnemy && (MathF.Abs(hx) + MathF.Abs(hy) + MathF.Abs(hz) > 0.01f) &&
                        (duelLook || (forceLook && st.Phase != Phase.Fire));
         _headAimFlag = false;
+        _duckPawn = me.Pawn.Handle;
         WriteBot(bot, pitch, yaw, hx, hy, hz, st.Crouch, doAim, forceLook, aimSpot);
         // 偷看那几拍不许开火：bot 自己的 AI 一有视线就会扣扳机，
         // 这里把它的"正在瞄准敌人"标志按住，只骗枪、不还手。
@@ -1209,6 +1215,43 @@ public class LeftHandPlugin : BasePlugin, IPluginConfig<LeftHandConfig>
             if (crouch) Schema.GetRef<bool>(bot, "CBot", "m_isCrouching") = true;
         }
         catch { BotFieldsFailed(); }
+        // 光写 AI 的"想蹲"没用：引擎里真正决定模型高矮的是 pawn 的 duck 状态，
+        // AI 一旦被自己的寻路逻辑覆盖，模型就站着"蹲走"——玩家看到的就是"蹲着走跟站着走一个样"。
+        if (crouch && _botFieldsOk && _duckPawn != IntPtr.Zero) ForceDuck(_duckPawn);
+    }
+
+    private static string _duckField = null;
+    private static IntPtr _duckPawn = IntPtr.Zero;
+    private void ForceDuck(IntPtr p)
+    {
+        if (_duckField == "-") return;
+        var pairs = new (string, string, bool)[]
+        {
+            ("CCSPlayerPawn", "m_bDucking", true),
+            ("CCSPlayerPawn", "m_bDucked", true),
+            ("CBasePlayerPawn", "m_bDucking", true),
+            ("CBasePlayerPawn", "m_bDucked", true),
+        };
+        foreach (var (cls, fld, val) in pairs)
+        {
+            if (_duckField != null && _duckField != cls + "." + fld) continue;
+            try
+            {
+                Schema.GetRef<bool>(p, cls, fld) = val;
+                if (_duckField == null)
+                {
+                    _duckField = cls + "." + fld;
+                    Console.WriteLine($"[LeftHand] duck field = {_duckField}");
+                }
+                return;
+            }
+            catch { }
+        }
+        if (_duckField == null)
+        {
+            _duckField = "-";
+            Console.WriteLine("[LeftHand] no duck field found");
+        }
     }
 
     private void GenericCounterStrafe(Snap me, IntPtr bot)
